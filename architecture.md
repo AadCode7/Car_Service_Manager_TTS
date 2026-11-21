@@ -427,6 +427,9 @@ Remaining technical inputs to collect during implementation:
 
 ## 13. Reference links
 
+- [NVIDIA NeMo Fast-Conformer architecture guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/asr/models.html)
+- [NVIDIA Fast Conformer research notes](https://research.nvidia.com/labs/conv-ai/blogs/2023/2023-06-07-fast-conformer/)
+- [Zipformer — ICLR 2024 paper](https://proceedings.iclr.cc/paper_files/paper/2024/hash/c1bb0e3b062f0a443f2cc8a4ec4bb30d-Abstract-Conference.html)
 - [SpeechBrain speech recognition from scratch tutorial](https://speechbrain.readthedocs.io/en/stable/tutorials/tasks/speech-recognition-from-scratch.html)
 - [SpeechBrain PyTorch speech toolkit](https://github.com/speechbrain/speechbrain)
 - [LibriSpeech ASR corpus — OpenSLR, approximately 1,000 hours, CC BY 4.0](https://openslr.org/12/)
