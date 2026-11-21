@@ -20,7 +20,7 @@ The application reads accurate customer, vehicle and service records held by the
 - [x] Added a `.gitignore` for datasets, recordings, model weights, tokenizers, artifacts, secrets and runtime files.
 - [x] Added the ASR training package under `training/asr/`.
 - [x] Added a notebook-specific ASR README with Kaggle/Colab instructions.
-- [ ] Run the Python syntax-check workflow and fix any syntax issues.
+- [x] Python syntax compilation passed in GitHub Actions.
 - [ ] Run the smoke test in a CUDA notebook.
 - [ ] Run a short real-data training experiment.
 - [ ] Run full LibriSpeech train/validation/test experiments.
@@ -32,10 +32,10 @@ The application reads accurate customer, vehicle and service records held by the
 |---|---|---|
 | Frontend/backend/database | Local React + TypeScript, FastAPI, SQLite | Planned |
 | Conversation LLM | Groq API behind a backend adapter | Planned |
-| ASR | Random-initialised English Conformer-CTC | Implemented as first baseline |
+| ASR | Random-initialised English FastConformer-inspired Conformer-CTC | Implemented as first baseline |
 | ASR feature frontend | 16 kHz, 80 log-Mel features, per-utterance CMVN | Implemented |
 | Tokenizer | SentencePiece unigram/BPE; ID 0 reserved for CTC blank | Implemented |
-| Encoder | 4x convolutional subsampling; Macaron FFNs; rotary self-attention; GLU/depthwise convolution; PyTorch SDPA | Implemented |
+| Encoder | 8x depthwise-separable convolutional subsampling; 9-frame Conformer kernels; Macaron FFNs; rotary self-attention; GLU/depthwise convolution; PyTorch SDPA | Implemented |
 | Training | CTC loss, SpecAugment, speed perturbation, duration buckets, AdamW, warmup/cosine schedule, AMP, gradient clipping, EMA | Implemented |
 | Evaluation | Validation/test loss, corpus WER/CER, utterance predictions and optional CTC prefix beam search | Implemented |
 | Charts | Loss, WER/CER, learning rate, epoch time, per-utterance WER distribution and WER vs duration | Implemented |
@@ -46,7 +46,7 @@ The application reads accurate customer, vehicle and service records held by the
 
 ### Research positioning
 
-The current code is a **research-informed Conformer-CTC baseline**, not a faithful Zipformer/FastConformer reproduction and not a claim of state-of-the-art benchmark performance. It uses recent, practical techniques in a compact implementation suitable for an initial free-notebook experiment. The architecture roadmap documents a Zipformer-style multi-resolution encoder and RNN-T as later research upgrades.
+The current code is a **research-informed FastConformer-inspired Conformer-CTC baseline**, not a faithful Zipformer/FastConformer reproduction and not a claim of state-of-the-art benchmark performance. It uses recent, practical techniques in a compact implementation suitable for an initial free-notebook experiment. The architecture roadmap documents a Zipformer-style multi-resolution encoder and RNN-T as later research upgrades.
 
 Training from random initialisation is materially harder than using a large pretrained speech foundation model. The initial LibriSpeech read-speech corpus is a baseline; automotive domain accuracy needs additional permissioned English speech and human-corrected transcripts.
 
@@ -58,7 +58,7 @@ Training from random initialisation is materially harder than using a large pret
 - `training/asr/tokenizer.py` — text normalisation and SentencePiece wrapper.
 - `training/asr/train_tokenizer.py` — train vocabulary from training transcripts only.
 - `training/asr/data.py` — audio loading, resampling, log-Mel features, duration bucketing, collate and SpecAugment.
-- `training/asr/model.py` — random-initialised Conformer-CTC network.
+- `training/asr/model.py` — random-initialised FastConformer-inspired Conformer-CTC network.
 - `training/asr/metrics.py` — greedy decoding, CTC prefix beam decoding, WER and CER.
 - `training/asr/train.py` — mixed-precision training, validation, EMA, scheduler, periodic mid-epoch checkpoint and resume.
 - `training/asr/evaluate.py` — held-out evaluation, test metrics and per-utterance CSV.
@@ -88,18 +88,18 @@ Run from the repository root in Kaggle or Colab with GPU enabled:
 - Added a LibriSpeech downloader/extractor and manifest generator for train-clean-100, dev-clean and test-clean.
 - Added SentencePiece tokenizer training from training transcripts only, reserving token ID 0 for the CTC blank symbol.
 - Added 16 kHz mono loading, resampling, 80-bin log-Mel extraction, per-utterance normalisation, speed perturbation, duration-bucketed batches and SpecAugment.
-- Added a random-initialised Conformer-CTC encoder using convolutional subsampling, Macaron feed-forward blocks, rotary attention and PyTorch scaled-dot-product attention.
+- Added a random-initialised Conformer-CTC encoder using FastConformer-inspired 8x depthwise-separable subsampling, 9-frame convolution kernels, Macaron feed-forward blocks, rotary attention and PyTorch scaled-dot-product attention.
 - Added configurable mid-epoch checkpoints and resume from the next saved batch to reduce lost work when free notebook sessions disconnect.
 - Added CTC training with AdamW, warmup/cosine schedule, mixed precision, gradient clipping, EMA, best/last checkpoints and resume support.
 - Added validation loss, WER/CER, held-out predictions, optional prefix beam decoding and charts.
 - Added single-audio inference plus API-key-protected FastAPI endpoint for temporary remote hosting in a notebook runtime.
 - Added notebook setup/instructions and ignored local datasets, recordings, checkpoints, tokenizers and experiment artifacts in Git.
-- Important limitation: code has been committed, but it has **not yet been trained or benchmarked on a GPU in this session**. The first action is to run the smoke test and short real-data experiment in Kaggle/Colab and fix any runtime issues found.
+- CI syntax compilation passed. The first CPU smoke-test attempt exposed a missing SentencePiece dependency in the workflow; that dependency has been added, and the rerun is pending. Code has **not yet been trained or benchmarked on a GPU in this session**. The first action is to run the smoke test and short real-data experiment in Kaggle/Colab and fix any runtime issues found.
 
 ## Next implementation and validation checklist
 
 ### Immediate: verify the ASR baseline
-- [ ] Run the Python smoke test in a CUDA notebook.
+- [ ] Run the CPU model/data smoke test in GitHub Actions (rerun after adding the missing SentencePiece dependency).\n- [ ] Run the Python smoke test in a CUDA notebook.
 - [ ] Prepare a small/short manifest and verify audio feature extraction.
 - [ ] Train for one epoch on a limited sample.
 - [ ] Confirm best.pt, last.pt, tokenizer.model and history.csv are created.
@@ -133,7 +133,7 @@ Run from the repository root in Kaggle or Colab with GPU enabled:
 - The 100-hour LibriSpeech download requires several gigabytes of storage. More data and longer training will likely be needed for strong generalisation.
 - Read audiobook speech is not representative of automotive conversations. Do not claim domain accuracy from LibriSpeech WER alone.
 - WER/CER do not directly measure critical slot correctness. Add exact-match tests for registration numbers, vehicle/model names, dates, mileage, amounts and appointment times.
-- The first model is a compact Conformer-CTC baseline. A faithful Zipformer/RNN-T reproduction is a subsequent research milestone.
+- The first model is a compact FastConformer-inspired Conformer-CTC baseline. A faithful Zipformer/RNN-T reproduction is a subsequent research milestone.
 - Temporary inference tunnels are publicly reachable. Protect the endpoint with a strong API key, keep it out of frontend code, and never upload customer audio without permission.
 - Model checkpoints, tokenizer, data, recordings, secrets and output charts stay outside Git unless synthetic/public data and licence rules explicitly permit sharing.
 - Keep company vehicle data and user-supplied reference values as the authoritative source. The LLM must not invent reference limits or approve its own customer-request forms.
