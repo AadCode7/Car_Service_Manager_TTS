@@ -59,7 +59,7 @@ def main() -> None:
         n_heads=4,
         n_layers=2,
         ff_multiplier=2,
-        conv_kernel_size=15,
+        conv_kernel_size=9,
         subsampling_channels=32,
         dropout=0.1,
     )
