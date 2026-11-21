@@ -20,7 +20,7 @@ The application should cover the full service journey:
 5. Check the vehicle in, capture its condition and odometer, and create a job card.
 6. Record inspections and diagnostic readings, comparing them with the correct manufacturer or approved reference specifications.
 7. Prepare an estimate, explain recommended work and optional add-ons, and obtain customer approval before work is performed.
-8. Track the service, quality checks, invoice and payment status.
+8. Track the service, quality checks, estimate/invoice breakdown and vehicle collection status.
 9. Contact the customer when the vehicle is actually ready and arrange collection.
 10. Preserve the full timeline for future visits.
 
@@ -174,7 +174,7 @@ The database should be relational. Use stable IDs and foreign keys rather than e
 | DiagnosticReading | Parameter, measured value, unit, test conditions, device, timestamp and technician |
 | ReferenceSpecification | Vehicle applicability, parameter, expected range, unit, conditions, source and version |
 | Estimate / EstimateLine | Labour, parts, taxes, covered/chargeable classification and calculated total; no payment transaction |
-| Invoice / Payment | Totals, taxes, due amount, payment request, provider reference and verified status |
+| Estimate / CostBreakdown | Labour, parts, taxes, discounts, free-service coverage, chargeable items and calculated totals; no payment transaction |
 | CustomerRequestDraft | Structured extraction of requested work, symptoms, preferences, appointment choices, unresolved fields and source transcript spans |
 | SupervisorApproval | Draft version, approver, decision, edits, timestamp and reason |
 | CallSession | Purpose, customer, timestamps, outcome, transcript and recording consent |
@@ -419,10 +419,12 @@ Remaining technical inputs to collect during implementation:
 
 ## 13. Reference links
 
-- [Groq Speech-to-Text documentation](https://console.groq.com/docs/speech-to-text)
-- [Groq Text-to-Speech documentation](https://console.groq.com/docs/text-to-speech/)
-- [Groq rate limits](https://console.groq.com/docs/rate-limits)
-- [Sarvam model and language list](https://docs.sarvam.ai/api/getting-started/models)
-- [Sarvam pricing, credits and rate limits](https://docs.sarvam.ai/api/getting-started/pricing)
-- [TRAI / Government of India update, 18 September 2026](https://www.pib.gov.in/PressReleasePage.aspx?PRID=2311989)
-- [Kaggle notebook GPU documentation](https://www.kaggle.com/docs/notebooks)
+- [SpeechBrain speech recognition from scratch tutorial](https://speechbrain.readthedocs.io/en/stable/tutorials/tasks/speech-recognition-from-scratch.html)
+- [SpeechBrain PyTorch speech toolkit](https://github.com/speechbrain/speechbrain)
+- [LibriSpeech ASR corpus — OpenSLR, approximately 1,000 hours, CC BY 4.0](https://openslr.org/12/)
+- [TensorFlow Datasets LibriSpeech overview](https://www.tensorflow.org/datasets/catalog/librispeech)
+- [Vapi Web SDK / browser voice calls](https://docs.vapi.ai/quickstart/web)
+- [Vapi custom transcriber integration](https://docs.vapi.ai/customization/custom-transcriber)
+- [Vapi custom TTS integration](https://docs.vapi.ai/customization/custom-voices/custom-tts)
+- [Vapi voice data flow and orchestration boundaries](https://docs.vapi.ai/security-and-privacy/data-flow)
+- [Vapi pricing](https://vapi.ai/pricing)
