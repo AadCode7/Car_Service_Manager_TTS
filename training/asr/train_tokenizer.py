@@ -53,8 +53,8 @@ def main() -> None:
         bos_id=-1,
         eos_id=-1,
         hard_vocab_limit=False,
-        shuffle_input_sentence=True,
-        input_sentence_size=2_000_000,
+        shuffle_input_sentence=False,
+        input_sentence_size=0,
         num_threads=4,
     )
     generated_model = prefix.with_suffix(".model")
