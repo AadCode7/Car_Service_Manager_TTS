@@ -69,7 +69,7 @@ Then run a short real-data experiment. This reads a small subset from the manife
 
     !python -m training.asr.train --smoke
 
-The smoke run writes to artifacts/asr by default. It is only a pipeline test; do not interpret its WER as a meaningful model result.
+The smoke run writes to artifacts/asr-smoke by default, separate from the full model checkpoint directory. It is only a pipeline test; do not interpret its WER as a meaningful model result.
 
 ## 5. Train the full baseline
 
