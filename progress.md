@@ -20,6 +20,7 @@ The application reads accurate customer, vehicle and service records held by the
 - [x] Added a `.gitignore` for datasets, recordings, model weights, tokenizers, artifacts, secrets and runtime files.
 - [x] Added the ASR training package under `training/asr/`.
 - [x] Added a notebook-specific ASR README with Kaggle/Colab instructions.
+- [ ] Run the Python syntax-check workflow and fix any syntax issues.
 - [ ] Run the smoke test in a CUDA notebook.
 - [ ] Run a short real-data training experiment.
 - [ ] Run full LibriSpeech train/validation/test experiments.
@@ -59,7 +60,7 @@ Training from random initialisation is materially harder than using a large pret
 - `training/asr/data.py` — audio loading, resampling, log-Mel features, duration bucketing, collate and SpecAugment.
 - `training/asr/model.py` — random-initialised Conformer-CTC network.
 - `training/asr/metrics.py` — greedy decoding, CTC prefix beam decoding, WER and CER.
-- `training/asr/train.py` — mixed-precision training, validation, EMA, scheduler, checkpoint and resume.
+- `training/asr/train.py` — mixed-precision training, validation, EMA, scheduler, periodic mid-epoch checkpoint and resume.
 - `training/asr/evaluate.py` — held-out evaluation, test metrics and per-utterance CSV.
 - `training/asr/plot_metrics.py` — training and test charts.
 - `training/asr/inference.py` — load checkpoint and transcribe audio arrays.
@@ -88,6 +89,7 @@ Run from the repository root in Kaggle or Colab with GPU enabled:
 - Added SentencePiece tokenizer training from training transcripts only, reserving token ID 0 for the CTC blank symbol.
 - Added 16 kHz mono loading, resampling, 80-bin log-Mel extraction, per-utterance normalisation, speed perturbation, duration-bucketed batches and SpecAugment.
 - Added a random-initialised Conformer-CTC encoder using convolutional subsampling, Macaron feed-forward blocks, rotary attention and PyTorch scaled-dot-product attention.
+- Added configurable mid-epoch checkpoints and resume from the next saved batch to reduce lost work when free notebook sessions disconnect.
 - Added CTC training with AdamW, warmup/cosine schedule, mixed precision, gradient clipping, EMA, best/last checkpoints and resume support.
 - Added validation loss, WER/CER, held-out predictions, optional prefix beam decoding and charts.
 - Added single-audio inference plus API-key-protected FastAPI endpoint for temporary remote hosting in a notebook runtime.
