@@ -216,12 +216,16 @@ def train_one_epoch(
     amp_enabled: bool,
     amp_dtype: torch.dtype,
     epoch: int,
+    initial_global_step: int = 0,
+    batch_offset: int = 0,
+    checkpoint_callback=None,
 ) -> dict[str, float]:
     model.train()
     optimizer.zero_grad(set_to_none=True)
     total_loss = 0.0
     total_examples = 0
     steps_since_update = 0
+    global_step = int(initial_global_step)
     accumulation = max(1, int(config.get("grad_accum_steps", 1)))
     max_batches = len(loader)
     started = time.perf_counter()
@@ -284,6 +288,9 @@ def train_one_epoch(
             if ema is not None:
                 ema.update(model)
             steps_since_update = 0
+            global_step += 1
+            if checkpoint_callback is not None:
+                checkpoint_callback(batch_offset + batch_index, global_step)
 
         progress.set_postfix(
             loss=f"{loss.item():.3f}",
@@ -296,6 +303,7 @@ def train_one_epoch(
         "seconds": elapsed,
         "examples": total_examples,
         "learning_rate": float(optimizer.param_groups[0]["lr"]),
+        "global_step": global_step,
     }
 
 
@@ -450,6 +458,8 @@ def main() -> None:
     criterion = nn.CTCLoss(blank=tokenizer.blank_id, zero_infinity=True, reduction="mean")
 
     start_epoch = 1
+    resume_batch = 0
+    global_step = 0
     best_wer = float("inf")
     epochs_without_improvement = 0
     history_path = output_dir / "history.csv"
@@ -468,7 +478,12 @@ def main() -> None:
         scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
         if checkpoint.get("scaler_state_dict"):
             scaler.load_state_dict(checkpoint["scaler_state_dict"])
-        start_epoch = int(checkpoint["epoch"]) + 1
+        epoch_complete = bool(checkpoint.get("epoch_complete", True))
+        start_epoch = int(checkpoint["epoch"]) + (1 if epoch_complete else 0)
+        resume_batch = (
+            0 if epoch_complete else int(checkpoint.get("batch_in_epoch", -1)) + 1
+        )
+        global_step = int(checkpoint.get("global_step", 0))
         best_wer = float(checkpoint.get("best_wer", best_wer))
         epochs_without_improvement = int(checkpoint.get("epochs_without_improvement", 0))
         if history_path.is_file():
@@ -488,11 +503,42 @@ def main() -> None:
     max_valid_batches = int(max_valid_batches) if max_valid_batches else None
 
     for epoch in range(start_epoch, int(config["training"]["epochs"]) + 1):
-        batch_sampler.set_epoch(epoch)
+        batch_offset = resume_batch if epoch == start_epoch else 0
+        batch_sampler.set_epoch(epoch, start_batch=batch_offset)
+
+        def save_step_checkpoint(completed_batch_index: int, current_global_step: int) -> None:
+            interval = int(config["training"].get("checkpoint_every_steps", 300))
+            if interval <= 0 or current_global_step % interval != 0:
+                return
+            step_payload = {
+                "epoch": epoch,
+                "epoch_complete": False,
+                "batch_in_epoch": completed_batch_index,
+                "global_step": current_global_step,
+                "model_state_dict": model.state_dict(),
+                "ema_state_dict": ema.model.state_dict() if ema is not None else None,
+                "ema_num_updates": ema.num_updates if ema is not None else 0,
+                "optimizer_state_dict": optimizer.state_dict(),
+                "scheduler_state_dict": scheduler.state_dict(),
+                "scaler_state_dict": scaler.state_dict(),
+                "best_wer": best_wer,
+                "epochs_without_improvement": epochs_without_improvement,
+                "model_config": model_config,
+                "audio_config": config["audio"],
+                "tokenizer_vocab_size": tokenizer.vocab_size,
+                "history": history,
+            }
+            save_checkpoint(output_dir / "last.pt", step_payload)
+
         train_stats = train_one_epoch(
             model, ema, train_loader, optimizer, scheduler, criterion, scaler,
-            device, config["training"], amp_enabled, amp_dtype, epoch
+            device, config["training"], amp_enabled, amp_dtype, epoch,
+            initial_global_step=global_step,
+            batch_offset=batch_offset,
+            checkpoint_callback=save_step_checkpoint,
         )
+        global_step = int(train_stats["global_step"])
+        resume_batch = 0
         evaluation_model = ema.model if ema is not None else model
         valid_stats = validate(
             evaluation_model, valid_loader, criterion, tokenizer, device,
@@ -525,6 +571,9 @@ def main() -> None:
 
         checkpoint_common = {
             "epoch": epoch,
+            "epoch_complete": True,
+            "batch_in_epoch": -1,
+            "global_step": global_step,
             "model_state_dict": model.state_dict(),
             "ema_state_dict": ema.model.state_dict() if ema is not None else None,
             "ema_num_updates": ema.num_updates if ema is not None else 0,
