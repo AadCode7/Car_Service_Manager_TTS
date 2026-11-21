@@ -55,6 +55,7 @@ training:
   early_stopping_patience: 8
   log_every_steps: 50
   save_every_epoch: true
+  checkpoint_every_steps: 300
   max_valid_batches: null
 
 output:
