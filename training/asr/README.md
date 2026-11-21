@@ -93,8 +93,8 @@ Resume from artifacts/asr/last.pt:
 
     !python -m training.asr.train --resume
 
-Checkpoints are written at epoch boundaries:
-- artifacts/asr/last.pt: full training state for resume
+Checkpoints are written every 300 optimiser updates (configurable) and at epoch boundaries. Resume continues from the next saved batch when a mid-epoch checkpoint exists:
+- artifacts/asr/last.pt: full training state for resume, including mid-epoch batch position
 - artifacts/asr/best.pt: best validation-WER weights for inference/evaluation
 - artifacts/asr/tokenizer.model: exact tokenizer used by the model
 - artifacts/asr/history.csv and metrics.jsonl: training history
