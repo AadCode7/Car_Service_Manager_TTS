@@ -70,7 +70,7 @@ async def transcribe(
     if MODEL_BUNDLE is None:
         raise HTTPException(status_code=503, detail="ASR model is not loaded.")
 
-    content = await audio.read()
+    content = await audio.read(MAX_UPLOAD_BYTES + 1)
     if not content:
         raise HTTPException(status_code=400, detail="Uploaded audio is empty.")
     if len(content) > MAX_UPLOAD_BYTES:
