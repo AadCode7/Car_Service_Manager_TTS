@@ -332,6 +332,10 @@ def main() -> None:
     config = load_config(resolve_path(args.config))
     if args.output_dir:
         config["output"]["directory"] = str(args.output_dir)
+    elif args.smoke:
+        # Keep the tiny two-layer smoke checkpoint separate from the full model
+        # so --resume on the real run cannot load incompatible tensor shapes.
+        config["output"]["directory"] = "artifacts/asr-smoke"
     if args.epochs is not None:
         config["training"]["epochs"] = args.epochs
     if args.max_train_samples is not None:
