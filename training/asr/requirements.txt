@@ -1,6 +1,5 @@
-# Install a CUDA-enabled PyTorch build separately when the notebook image does not
-# already provide one. See https://pytorch.org/get-started/locally/
-torch>=2.2
+# Install PyTorch separately to match your notebook's CUDA/CPU runtime:
+# https://pytorch.org/get-started/locally/
 numpy>=1.24
 scipy>=1.10
 soundfile>=0.12
