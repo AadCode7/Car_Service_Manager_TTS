@@ -234,7 +234,7 @@ A toolkit such as SpeechBrain or ESPnet can be used to implement training recipe
 Recommended first research architecture:
 
 - Convert input waveforms into log-Mel filter-bank features.
-- Build a compact CNN/subsampling + Conformer-style encoder with randomly initialised parameters.
+- Build a compact FastConformer-inspired encoder with 8x depthwise-separable subsampling, 9-frame convolution kernels and randomly initialised parameters.
 - Train with a CTC objective as the first stable baseline.
 - Decode token sequences into text; later evaluate beam search and a language-model rescoring component.
 - Add streaming/chunked inference only after offline recognition quality is measured.
@@ -381,7 +381,7 @@ English-only; local employee application; laptop microphone/speaker conversation
 Build the frontend shell, FastAPI backend, SQLite schema, synthetic seed data, customer/vehicle profiles, service history, service plans, reference values, diagnostic comparisons and employee dashboard.
 
 ### Phase 2 — ASR research: first model from scratch
-The initial training package is committed under `training/asr/`: LibriSpeech preparation, SentencePiece training, log-Mel feature extraction, duration-bucketed batches, a random-initialised Conformer-CTC encoder, CTC training, validation, evaluation, charts, resumable checkpoints and a temporary inference API. Next, run the smoke test and a short real-data experiment on Kaggle/Colab, then use measured results to decide the next architecture upgrade. No pretrained ASR checkpoint is used.
+The initial training package is committed under `training/asr/`: LibriSpeech preparation, SentencePiece training, log-Mel feature extraction, duration-bucketed batches, a random-initialised FastConformer-inspired Conformer-CTC encoder, CTC training, validation, evaluation, charts, resumable checkpoints and a temporary inference API. Next, run the smoke test and a short real-data experiment on Kaggle/Colab, then use measured results to decide the next architecture upgrade. No pretrained ASR checkpoint is used.
 
 ### Phase 3 — Voice loop and business tools
 Connect browser microphone audio to our ASR endpoint; send transcripts to Groq for conversational reasoning; connect typed tools to the backend; display retrieved context and structured customer-request drafts. Until custom TTS is ready, responses can be shown as text.
