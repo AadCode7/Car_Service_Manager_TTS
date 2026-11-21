@@ -1,0 +1,31 @@
+# Local datasets and manifests (may contain customer or licensed content)
+data/
+local_data/
+*.flac
+*.wav
+*.mp3
+*.ogg
+
+# Model weights, tokenizers and experiment outputs
+artifacts/
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.safetensors
+*.model
+*.vocab
+
+# Runtime and temporary files
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
