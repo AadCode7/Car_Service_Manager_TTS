@@ -175,7 +175,9 @@ The database should be relational. Use stable IDs and foreign keys rather than e
 | ReferenceSpecification | Vehicle applicability, parameter, expected range, unit, conditions, source and version |
 | Estimate / EstimateLine | Labour, parts, taxes, covered/chargeable classification and calculated total; no payment transaction |
 | Invoice / Payment | Totals, taxes, due amount, payment request, provider reference and verified status |
-| CustomerRequestDraft | Structured extraction of requested work, symptoms, preferences, appointment choices, unresolved fields and source transcript spans |\n| SupervisorApproval | Draft version, approver, decision, edits, timestamp and reason |\n| CallSession | Purpose, customer, timestamps, outcome, transcript and recording consent |
+| CustomerRequestDraft | Structured extraction of requested work, symptoms, preferences, appointment choices, unresolved fields and source transcript spans |
+| SupervisorApproval | Draft version, approver, decision, edits, timestamp and reason |
+| CallSession | Purpose, customer, timestamps, outcome, transcript and recording consent |
 | ConsentRecord | Purpose, channel, wording/version, timestamp, source and withdrawal |
 | AuditEvent | Who changed what, when, and the before/after reference |
 
