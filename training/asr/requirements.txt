@@ -1,0 +1,14 @@
+# Install a CUDA-enabled PyTorch build separately when the notebook image does not
+# already provide one. See https://pytorch.org/get-started/locally/
+torch>=2.2
+numpy>=1.24
+scipy>=1.10
+soundfile>=0.12
+sentencepiece>=0.2
+PyYAML>=6.0
+matplotlib>=3.7
+pandas>=2.0
+fastapi>=0.110
+uvicorn[standard]>=0.27
+python-multipart>=0.0.9
+tqdm>=4.66
