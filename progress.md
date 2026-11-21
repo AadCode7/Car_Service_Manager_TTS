@@ -19,8 +19,8 @@ The voice agent should retrieve accurate customer/vehicle/service data and help 
 - Keep AI providers behind adapters so providers can be changed independently.
 - The database, not the LLM, is the source of truth.
 - Use synthetic data until privacy, consent, access and backup controls are ready.
-- All significant customer-facing or financial actions require backend validation and explicit confirmation.
-- Real telephone calls and payment processing are later integrations; browser-based simulated calls and test payments come first.
+- AI-extracted customer requests are saved as editable drafts. A supervisor must approve them before official company records or work orders change.
+- Voice interaction is a browser-based simulated conversation through the laptop microphone and speakers; no phone calls.\n- Payments are limited to calculating and displaying estimates and line-item breakdowns; no payment gateway, requests or transactions.
 - Work directly on `main`, as requested. Do not create a feature branch unless explicitly requested.
 
 ## Current repository state
@@ -98,7 +98,7 @@ The voice agent should retrieve accurate customer/vehicle/service data and help 
 - [ ] Add call transcript and outcome timeline.
 - [ ] Test due-service and vehicle-ready call scenarios.
 
-### Phase 4 — Evaluation and speech data
+### Phase 6 — Evaluation and speech data
 - [ ] Create an opt-in speech data collection process.
 - [ ] Build domain vocabulary and transcription correction workflow.
 - [ ] Evaluate WER/CER and critical-field accuracy.
@@ -134,7 +134,7 @@ The voice agent should retrieve accurate customer/vehicle/service data and help 
 - Actual outbound phone calls require a telephony provider and current regulatory checks; a speech API alone cannot place a phone call.
 - Payment completion must come from a trusted gateway response or authorised reconciliation, never from the agent's conversation.
 - Local databases and audio files need backup, access control, retention and deletion policies.
-- Training a truly custom model requires consented, correctly labelled, representative audio. Fine-tuning a pretrained open-weight model is the practical first target; training from scratch is not the initial plan.
+- Training from random initialisation requires substantial labelled English audio. Use public datasets with compatible licences for the first experiment and consented company recordings for domain coverage.\n- ASR and TTS are separate research projects. Start with ASR; build TTS after the ASR training/evaluation pipeline is proven.\n- Company records and user-supplied reference values remain authoritative; AI can only retrieve, compare and explain them.\n- A supervisor must approve AI-generated customer requests before they become official work orders or records.\n- Estimates and payment breakdowns only; no payment gateway or real transactions.
 
 ## Working rules for future changes
 
