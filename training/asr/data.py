@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import random
+from functools import lru_cache
 from fractions import Fraction
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,7 @@ from torch.utils.data import Dataset
 from .tokenizer import ASRTokenizer
 
 
+@lru_cache(maxsize=16)
 def build_mel_filterbank(
     sample_rate: int, n_fft: int, n_mels: int, f_min: float, f_max: float
 ) -> np.ndarray:
