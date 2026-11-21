@@ -17,6 +17,7 @@ The application reads accurate customer, vehicle and service records held by the
 
 - [x] Confirmed repository exists and default branch is `main`.
 - [x] Created `architecture.md` and `progress.md`.
+- [x] Added a root `README.md` with the project landing page and Kaggle/Colab quick start.
 - [x] Added a `.gitignore` for datasets, recordings, model weights, tokenizers, artifacts, secrets and runtime files.
 - [x] Added the ASR training package under `training/asr/`.
 - [x] Added a notebook-specific ASR README with Kaggle/Colab instructions.
@@ -99,7 +100,8 @@ Run from the repository root in Kaggle or Colab with GPU enabled:
 ## Next implementation and validation checklist
 
 ### Immediate: verify the ASR baseline
-- [x] CPU model/data smoke test passed in GitHub Actions after adding the SentencePiece CI dependency.\n- [ ] Run the smoke test in a Kaggle/Colab CUDA notebook (GitHub validation ran on CPU only).
+- [x] CPU model/data smoke test passed in GitHub Actions after adding the SentencePiece CI dependency.
+- [x] Separated the short two-layer training smoke checkpoint into `artifacts/asr-smoke/` to prevent incompatible checkpoints being resumed as the full model.\n- [ ] Run the smoke test in a Kaggle/Colab CUDA notebook (GitHub validation ran on CPU only).
 - [ ] Prepare a small/short manifest and verify audio feature extraction.
 - [ ] Train for one epoch on a limited sample.
 - [ ] Confirm best.pt, last.pt, tokenizer.model and history.csv are created.
