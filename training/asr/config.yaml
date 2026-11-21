@@ -27,8 +27,8 @@ model:
   n_heads: 6
   n_layers: 10
   ff_multiplier: 4
-  conv_kernel_size: 31
-  subsampling_channels: 64
+  conv_kernel_size: 9
+  subsampling_channels: 128
   dropout: 0.10
 
 training:
