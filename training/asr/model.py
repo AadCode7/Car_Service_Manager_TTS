@@ -1,7 +1,8 @@
 """Random-initialised Conformer-CTC acoustic model.
 
 Research-informed components:
-- Four-times convolutional feature subsampling.
+- FastConformer-inspired 8x depthwise-separable convolutional subsampling.
+- Reduced 9-frame Conformer convolution kernel for compute efficiency.
 - Macaron-style dual feed-forward blocks.
 - Rotary positional embeddings for self-attention.
 - PyTorch scaled-dot-product attention (FlashAttention kernels are selected
@@ -22,23 +23,52 @@ import torch.nn.functional as F
 
 
 def subsample_lengths(lengths: torch.Tensor) -> torch.Tensor:
-    """Output lengths after two stride-2, kernel-3, padding-1 convolutions."""
-    first = torch.div(lengths + 1, 2, rounding_mode="floor")
-    return torch.div(first + 1, 2, rounding_mode="floor")
+    """Output lengths after three stride-2, kernel-3, padding-1 stages (8x)."""
+    for _ in range(3):
+        lengths = torch.div(lengths + 1, 2, rounding_mode="floor")
+    return lengths
+
+
+class DepthwiseSeparableSubsamplingBlock(nn.Module):
+    """Stride-2 depthwise convolution followed by pointwise channel mixing."""
+
+    def __init__(self, in_channels: int, out_channels: int):
+        super().__init__()
+        self.depthwise = nn.Conv2d(
+            in_channels,
+            in_channels,
+            kernel_size=3,
+            stride=2,
+            padding=1,
+            groups=in_channels,
+            bias=False,
+        )
+        self.pointwise = nn.Conv2d(
+            in_channels, out_channels, kernel_size=1, bias=False
+        )
+        self.norm = nn.BatchNorm2d(out_channels)
+        self.activation = nn.GELU()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.activation(self.norm(self.pointwise(self.depthwise(x))))
 
 
 class ConvSubsampling(nn.Module):
+    """FastConformer-inspired 8x depthwise-separable convolutional frontend."""
+
     def __init__(self, input_dim: int, channels: int, d_model: int):
         super().__init__()
         self.conv = nn.Sequential(
-            nn.Conv2d(1, channels, kernel_size=3, stride=2, padding=1),
-            nn.GELU(),
-            nn.Conv2d(channels, channels, kernel_size=3, stride=2, padding=1),
-            nn.GELU(),
+            DepthwiseSeparableSubsamplingBlock(1, channels),
+            DepthwiseSeparableSubsamplingBlock(channels, channels),
+            DepthwiseSeparableSubsamplingBlock(channels, channels),
         )
-        freq_after_first = (input_dim + 1) // 2
-        freq_after_second = (freq_after_first + 1) // 2
-        self.projection = nn.Linear(channels * freq_after_second, d_model)
+        frequency_after_subsampling = input_dim
+        for _ in range(3):
+            frequency_after_subsampling = (frequency_after_subsampling + 1) // 2
+        self.projection = nn.Linear(
+            channels * frequency_after_subsampling, d_model
+        )
 
     def forward(self, features: torch.Tensor) -> torch.Tensor:
         hidden = self.conv(features.unsqueeze(1))
