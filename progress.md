@@ -99,7 +99,7 @@ Run from the repository root in Kaggle or Colab with GPU enabled:
 ## Next implementation and validation checklist
 
 ### Immediate: verify the ASR baseline
-- [ ] Run the CPU model/data smoke test in GitHub Actions (rerun after adding the missing SentencePiece dependency).\n- [ ] Run the Python smoke test in a CUDA notebook.
+- [x] CPU model/data smoke test passed in GitHub Actions after adding the SentencePiece CI dependency.\n- [ ] Run the smoke test in a Kaggle/Colab CUDA notebook (GitHub validation ran on CPU only).
 - [ ] Prepare a small/short manifest and verify audio feature extraction.
 - [ ] Train for one epoch on a limited sample.
 - [ ] Confirm best.pt, last.pt, tokenizer.model and history.csv are created.
