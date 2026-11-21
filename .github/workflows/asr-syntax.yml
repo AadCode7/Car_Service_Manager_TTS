@@ -1,0 +1,24 @@
+name: ASR Python syntax check
+
+on:
+  push:
+    paths:
+      - "training/**"
+      - ".github/workflows/asr-syntax.yml"
+  pull_request:
+    paths:
+      - "training/**"
+      - ".github/workflows/asr-syntax.yml"
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile Python modules
+        run: python -m compileall -q training/asr
