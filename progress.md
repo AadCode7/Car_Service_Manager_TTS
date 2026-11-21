@@ -28,7 +28,7 @@ The voice agent should retrieve accurate customer/vehicle/service data and help 
 - [x] Confirmed repository exists and is writable.
 - [x] Confirmed default branch is `main`.
 - [x] Confirmed repository was empty at the start of this project (size 0; no existing code or README to preserve).
-- [ ] Add initial architecture and progress documents.
+- [x] Add initial architecture and progress documents.
 - [ ] Add the initial application scaffold after planning decisions are confirmed.
 
 ## Architecture decisions proposed
@@ -58,6 +58,7 @@ The voice agent should retrieve accurate customer/vehicle/service data and help 
 - Identified vehicle variant-specific service data and diagnostic-reference provenance as core requirements.
 - Identified Indian-language speech support and real outbound telephony as decisions that affect provider selection and compliance.
 - Added a staged implementation plan to `architecture.md`.
+- Committed `architecture.md` and `progress.md` directly to `main` as the initial project documents.
 
 ## Implementation checklist
 
