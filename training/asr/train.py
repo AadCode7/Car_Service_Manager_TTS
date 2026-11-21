@@ -65,16 +65,21 @@ class ModelEMA:
     def __init__(self, model: nn.Module, decay: float):
         self.model = copy.deepcopy(model).eval()
         self.decay = float(decay)
+        self.num_updates = 0
         for parameter in self.model.parameters():
             parameter.requires_grad_(False)
 
     @torch.no_grad()
     def update(self, source: nn.Module) -> None:
+        self.num_updates += 1
+        # Warm up EMA decay to avoid retaining randomly initialised weights in
+        # the early checkpoints.
+        decay = min(self.decay, (1.0 + self.num_updates) / (10.0 + self.num_updates))
         source_state = source.state_dict()
         for key, ema_value in self.model.state_dict().items():
             current = source_state[key].detach()
             if ema_value.is_floating_point():
-                ema_value.mul_(self.decay).add_(current, alpha=1.0 - self.decay)
+                ema_value.mul_(decay).add_(current, alpha=1.0 - decay)
             else:
                 ema_value.copy_(current)
 
@@ -327,6 +332,7 @@ def main() -> None:
         config["data"]["max_valid_samples"] = args.max_valid_samples
 
     if args.smoke:
+        config["data"]["num_workers"] = 0
         config["training"].update({
             "epochs": 1,
             "max_batch_seconds": 24.0,
@@ -336,7 +342,6 @@ def main() -> None:
             "spec_augment": False,
             "use_ema": False,
             "max_valid_batches": 3,
-            "num_workers": 0,
         })
         config["data"]["max_train_samples"] = (
             config["data"].get("max_train_samples") or 128
@@ -458,6 +463,7 @@ def main() -> None:
         model.load_state_dict(checkpoint["model_state_dict"])
         if ema is not None and checkpoint.get("ema_state_dict"):
             ema.model.load_state_dict(checkpoint["ema_state_dict"])
+            ema.num_updates = int(checkpoint.get("ema_num_updates", 0))
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
         if checkpoint.get("scaler_state_dict"):
@@ -521,6 +527,7 @@ def main() -> None:
             "epoch": epoch,
             "model_state_dict": model.state_dict(),
             "ema_state_dict": ema.model.state_dict() if ema is not None else None,
+            "ema_num_updates": ema.num_updates if ema is not None else 0,
             "optimizer_state_dict": optimizer.state_dict(),
             "scheduler_state_dict": scheduler.state_dict(),
             "scaler_state_dict": scaler.state_dict(),
