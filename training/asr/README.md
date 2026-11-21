@@ -2,7 +2,7 @@
 
 This package trains an English automatic speech recognition model with **randomly initialised weights**. It does not download or fine-tune Whisper, wav2vec 2.0, HuBERT, NeMo checkpoints or any other pretrained speech recogniser.
 
-The current baseline is a compact Conformer-CTC model with convolutional subsampling, Macaron feed-forward blocks, rotary self-attention, PyTorch scaled-dot-product attention, SpecAugment, speed perturbation, duration-bucketed batches, AdamW, warmup/cosine scheduling, mixed precision, EMA weights and greedy/prefix-beam decoding.
+The current baseline is a compact **FastConformer-inspired Conformer-CTC** model: 8x depthwise-separable convolutional subsampling, 9-frame Conformer convolution kernels, Macaron feed-forward blocks, rotary self-attention, PyTorch scaled-dot-product attention, SpecAugment, speed perturbation, duration-bucketed batches, AdamW, warmup/cosine scheduling, mixed precision, EMA weights and greedy/prefix-beam decoding.
 
 It is research-informed and deliberately small enough to experiment with in Kaggle or Colab. It is **not a claim of matching large pretrained foundation ASR models or absolute state of the art**. Training from random initialisation needs much more labelled audio and compute than using a pretrained checkpoint.
 
@@ -80,7 +80,7 @@ Main settings are in training/asr/config.yaml:
 - data: manifests, tokenizer path and worker count
 - training: duration budget, AMP mode, SpecAugment, speed perturbation, EMA, learning rate and early stopping
 
-The default model has 10 Conformer blocks, 192 hidden dimensions and 6 attention heads. If the notebook runs out of GPU memory, lower max_batch_seconds, max_batch_size or d_model. If training is stable and GPU memory permits, increase the duration budget or model size gradually.
+The default model has 10 Conformer blocks, 192 hidden dimensions, 6 attention heads, 128 subsampling channels and an 8x temporal frontend. This is a smaller resource-conscious configuration than NVIDIA's documented 256-channel FastConformer recipe. If the notebook runs out of GPU memory, lower max_batch_seconds, max_batch_size or d_model. If training is stable and GPU memory permits, increase the duration budget or model size gradually.
 
 For a quick controlled subset without changing the YAML:
 
@@ -217,7 +217,7 @@ This baseline is intentionally built to make later experiments measurable. Candi
 6. Add domain adaptation using company-approved English automotive recordings and human-corrected transcripts.
 7. Profile streaming chunking and latency, and evaluate exact-match accuracy for registration numbers, dates, mileage, amounts and model names.
 
-Zipformer was introduced as a faster, more memory-efficient ASR encoder in ICLR 2024. NVIDIA's Fast-Conformer work also demonstrates how convolutional subsampling and smaller Conformer kernels reduce compute. This first implementation borrows modern Conformer design and PyTorch SDPA, but is not a faithful Zipformer/FastConformer reproduction.
+NVIDIA's FastConformer recipe uses 8x depthwise convolutional subsampling and 9-frame Conformer convolution kernels to reduce encoder compute. This implementation now borrows those two efficiency choices, plus Macaron blocks, rotary attention and PyTorch SDPA, but it is a compact custom model rather than a reproduction of NVIDIA's full FastConformer implementation. Zipformer, published at ICLR 2024, uses a different multi-rate U-Net-like encoder, weight-sharing attention, BiasNorm and Swoosh activations; reproducing that architecture is a later research experiment.
 
 Research references:
 - Zipformer paper: https://proceedings.iclr.cc/paper_files/paper/2024/hash/c1bb0e3b062f0a443f2cc8a4ec4bb30d-Abstract-Conference.html
