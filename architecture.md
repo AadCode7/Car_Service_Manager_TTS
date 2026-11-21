@@ -345,13 +345,21 @@ Car_Service_Manager_TTS/
 │   ├── migrations/
 │   └── tests/
 ├── training/
-│   ├── data/                  # ignored by Git; public licensed + consent-controlled company data
-│   ├── manifests/             # speaker-disjoint train/dev/test manifests
-│   ├── asr/                   # random-init ASR architecture and recipes
-│   ├── tts/                   # random-init TTS architecture and recipes
-│   ├── notebooks/             # cloud GPU experiments
-│   ├── scripts/
-│   └── evaluation/            # WER, critical-slot exact match, TTS evaluations
+│   ├── asr/
+│   │   ├── config.yaml
+│   │   ├── prepare_librispeech.py
+│   │   ├── train_tokenizer.py
+│   │   ├── data.py
+│   │   ├── model.py
+│   │   ├── metrics.py
+│   │   ├── train.py
+│   │   ├── evaluate.py
+│   │   ├── plot_metrics.py
+│   │   ├── inference.py
+│   │   ├── server.py
+│   │   └── README.md
+│   ├── tts/                   # planned second from-scratch speech model
+│   └── data/                  # local licensed/consented audio; ignored by Git
 ├── sample_data/
 ├── generated_documents/       # ignored by Git
 ├── local_data/                # ignored by Git; database and backups
