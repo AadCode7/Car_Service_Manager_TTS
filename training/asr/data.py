@@ -226,10 +226,12 @@ class DurationBucketBatchSampler:
         self.seed = seed
         self.bucket_multiplier = bucket_multiplier
         self.epoch = 0
+        self.start_batch = 0
         self._batches: list[list[int]] | None = None
 
-    def set_epoch(self, epoch: int) -> None:
+    def set_epoch(self, epoch: int, start_batch: int = 0) -> None:
         self.epoch = int(epoch)
+        self.start_batch = max(0, int(start_batch))
         self._batches = None
 
     def _make_batches(self) -> list[list[int]]:
@@ -272,12 +274,12 @@ class DurationBucketBatchSampler:
     def __iter__(self):
         if self._batches is None:
             self._batches = self._make_batches()
-        yield from self._batches
+        yield from self._batches[self.start_batch :]
 
     def __len__(self) -> int:
         if self._batches is None:
             self._batches = self._make_batches()
-        return len(self._batches)
+        return max(0, len(self._batches) - self.start_batch)
 
 
 def apply_spec_augment(
