@@ -42,7 +42,7 @@ training:
   warmup_steps: 1500
   max_grad_norm: 5.0
   amp: true
-  amp_dtype: bfloat16
+  amp_dtype: float16
   spec_augment: true
   freq_masks: 2
   freq_mask_width: 15
