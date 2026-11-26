@@ -1,0 +1,22 @@
+{
+  "model": {
+    "d_model": 192,
+    "n_heads": 6,
+    "n_layers": 10,
+    "ff_multiplier": 4,
+    "conv_kernel_size": 9,
+    "subsampling_channels": 128,
+    "dropout": 0.1,
+    "n_mels": 80,
+    "vocab_size": 500
+  },
+  "audio": {
+    "sample_rate": 16000,
+    "n_fft": 400,
+    "win_length": 400,
+    "hop_length": 160,
+    "n_mels": 80,
+    "f_min": 20.0,
+    "f_max": 7600.0
+  }
+}
