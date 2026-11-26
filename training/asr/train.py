@@ -495,7 +495,9 @@ def main() -> None:
                 history = list(csv.DictReader(source))
         print(f"Resuming from epoch {start_epoch}")
 
-    shutil.copy2(tokenizer_path, output_dir / "tokenizer.model")
+    destination_tokenizer = output_dir / "tokenizer.model"
+    if tokenizer_path.resolve() != destination_tokenizer.resolve():
+        shutil.copy2(tokenizer_path, destination_tokenizer)
     with (output_dir / "model_config.json").open("w", encoding="utf-8") as output:
         json.dump(
             {"model": model_config, "audio": config["audio"]},
