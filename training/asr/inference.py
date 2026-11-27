@@ -14,6 +14,8 @@ from scipy.signal import resample_poly
 from .data import waveform_to_log_mel
 from .metrics import greedy_decode
 from .model import ConformerCTC, validate_checkpoint_architecture
+from .wav2vec2_model import Wav2Vec2CTC
+from scipy.signal import resample_poly
 
 
 def load_asr_model(
@@ -57,7 +59,16 @@ def load_asr_model(
     tokenizer_path = artifact_dir / "tokenizer.model"
     if not tokenizer_path.is_file():
         raise FileNotFoundError(f"Tokenizer model missing: {tokenizer_path}")
-    model = ConformerCTC(**checkpoint["model_config"]).to(selected_device)
+    model_config = checkpoint["model_config"]
+    if model_config.get("backend") == "wav2vec2":
+        model = Wav2Vec2CTC(
+            vocab_size=model_config["vocab_size"],
+            pretrained=False,
+            freeze_encoder_layers=model_config.get("freeze_encoder_layers", 8),
+            dropout=model_config.get("dropout", 0.1),
+        ).to(selected_device)
+    else:
+        model = ConformerCTC(**model_config).to(selected_device)
     model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()
     return {
