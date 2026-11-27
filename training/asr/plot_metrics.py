@@ -19,7 +19,7 @@ def resolve_path(value: str | Path) -> Path:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--run-dir", type=Path, default=Path("artifacts/asr"))
+    parser.add_argument("--run-dir", type=Path, default=Path("artifacts/asr-transfer"))
     args = parser.parse_args()
     run_dir = resolve_path(args.run_dir)
     history_path = run_dir / "history.csv"
