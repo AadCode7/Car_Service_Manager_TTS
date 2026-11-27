@@ -340,6 +340,22 @@ def write_history(path: Path, rows: list[dict[str, Any]]) -> None:
 
 
 def main() -> None:
+    # The repository config can select the pretrained backend. Dispatch before
+    # constructing the legacy Conformer so the normal training command uses
+    # the configured model rather than silently ignoring model.backend.
+    bootstrap = argparse.ArgumentParser(add_help=False)
+    bootstrap.add_argument(
+        "--config", type=Path, default=Path("training/asr/config.yaml")
+    )
+    bootstrap_args, _ = bootstrap.parse_known_args()
+    selected_config = load_config(resolve_path(bootstrap_args.config))
+    if str(selected_config.get("model", {}).get("backend", "conformer")).lower() in {
+        "wav2vec2", "wav2vec2_ctc", "transfer"
+    }:
+        from .train_transfer import main as transfer_main
+        transfer_main()
+        return
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=Path("training/asr/config.yaml"))
     parser.add_argument("--output-dir", type=Path, default=None)
