@@ -16,6 +16,8 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from .data import ASRDataset, collate_asr
+from .train_wav2vec2 import WaveformDataset, collate_waveforms
+from .wav2vec2_model import Wav2Vec2CTC
 from .metrics import (
     corpus_error_rates,
     ctc_prefix_beam_search,
@@ -56,18 +58,31 @@ def main() -> None:
     model_config = checkpoint["model_config"]
     audio_config = checkpoint["audio_config"]
     tokenizer = ASRTokenizer(tokenizer_path)
-    model = ConformerCTC(**model_config).to(device)
+    if model_config.get("backend") == "wav2vec2":
+        model = Wav2Vec2CTC(
+            vocab_size=model_config["vocab_size"],
+            pretrained=False,
+            freeze_encoder_layers=model_config.get("freeze_encoder_layers", 8),
+            dropout=model_config.get("dropout", 0.1),
+        ).to(device)
+    else:
+        model = ConformerCTC(**model_config).to(device)
     model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()
     criterion = nn.CTCLoss(blank=tokenizer.blank_id, zero_infinity=True)
 
-    dataset = ASRDataset(
-        resolve_path(args.manifest), tokenizer, audio_config,
-        max_samples=args.max_samples, speed_perturb=False
-    )
+    if model_config.get("backend") == "wav2vec2":
+        dataset = WaveformDataset(args.manifest, tokenizer, audio_config["sample_rate"], args.max_samples)
+        collate_fn = collate_waveforms
+    else:
+        dataset = ASRDataset(
+            resolve_path(args.manifest), tokenizer, audio_config,
+            max_samples=args.max_samples, speed_perturb=False
+        )
+        collate_fn = collate_asr
     loader = DataLoader(
         dataset, batch_size=args.batch_size, shuffle=False, num_workers=2,
-        pin_memory=device.type == "cuda", collate_fn=collate_asr
+        pin_memory=device.type == "cuda", collate_fn=collate_fn
     )
 
     total_loss = 0.0
@@ -78,8 +93,12 @@ def main() -> None:
 
     with torch.inference_mode():
         for batch in tqdm(loader, desc="Testing"):
-            features = batch["features"].to(device, non_blocking=True)
-            feature_lengths = batch["feature_lengths"].to(device, non_blocking=True)
+            if model_config.get("backend") == "wav2vec2":
+                features = batch["waveforms"].to(device, non_blocking=True)
+                feature_lengths = batch["waveform_lengths"].to(device, non_blocking=True)
+            else:
+                features = batch["features"].to(device, non_blocking=True)
+                feature_lengths = batch["feature_lengths"].to(device, non_blocking=True)
             targets = batch["targets"].to(device, non_blocking=True)
             logits, output_lengths = model(features, feature_lengths)
             log_probs = F.log_softmax(logits.float(), dim=-1)
