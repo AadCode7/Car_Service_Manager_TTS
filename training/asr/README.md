@@ -243,7 +243,7 @@ The random-initialized Conformer experiment remains available, but it is no long
 
     !python -m training.asr.train_transfer
 
-This uses torchaudio's `WAV2VEC2_BASE` checkpoint. It is a 12-layer, 768-dimensional Wav2Vec 2.0 encoder pretrained on 960 hours of **unlabelled** LibriSpeech audio. It has no pretrained ASR output head. The project adds a new 29-symbol character CTC head and learns the transcript mapping from the project's manifests. This avoids copying an incompatible 500-piece SentencePiece head or reusing a supervised LibriSpeech decoder.
+Because `training/asr/config.yaml` selects `model.backend: wav2vec2`, the usual command `!python -m training.asr.train` also dispatches to this transfer-learning trainer. Calling `train_transfer` directly is equivalent.\n\nThis uses torchaudio's `WAV2VEC2_BASE` checkpoint. It is a 12-layer, 768-dimensional Wav2Vec 2.0 encoder pretrained on 960 hours of **unlabelled** LibriSpeech audio. It has no pretrained ASR output head. The project adds a new 29-symbol character CTC head and learns the transcript mapping from the project's manifests. This avoids copying an incompatible 500-piece SentencePiece head or reusing a supervised LibriSpeech decoder.
 
 The training schedule is staged:
 1. Epoch 1 trains only the new CTC head while the pretrained encoder is frozen.
@@ -269,7 +269,9 @@ If importing torchaudio fails, install the torchaudio build matching the already
 
 First run a small pipeline test to check that the manifest, audio paths, torchaudio model and CTC alignment all work:
 
-    !python -m training.asr.train_transfer --epochs 2 --max-train-samples 512 --max-valid-samples 128 --output-dir artifacts/asr-transfer-smoke
+    !python -m training.asr.train --smoke
+
+The smoke run uses 512 training and 128 validation examples and writes to `artifacts/asr-transfer-smoke`.
 
 If that completes and validation WER is finite, start the full run:
 
