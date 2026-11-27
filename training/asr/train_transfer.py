@@ -186,8 +186,17 @@ def main():
         )
         model.train()
         if epoch <= head_warmup_epochs:
-            # Keep encoder dropout disabled while fitting the fresh CTC head.
+            # Keep all pretrained dropout disabled while fitting the fresh head.
             model.backbone.eval()
+        else:
+            # Frozen layers should not inject dropout noise into the trainable
+            # upper encoder. Keep the frozen frontend and lower blocks in eval.
+            model.backbone.feature_extractor.eval()
+            transformer = model.backbone.encoder.transformer
+            for frozen_layer in list(transformer.layers)[: int(
+                config.get("model", {}).get("freeze_encoder_layers", 0)
+            )]:
+                frozen_layer.eval()
         batch_sampler.set_epoch(epoch)
         optimizer.zero_grad(set_to_none=True)
         epoch_loss = 0.0
