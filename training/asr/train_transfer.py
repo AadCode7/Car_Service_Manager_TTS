@@ -146,6 +146,14 @@ def main():
         checkpoint = torch.load(last_path, map_location=device, weights_only=False)
         if checkpoint.get("model_type") != "wav2vec2_ctc":
             raise RuntimeError("Checkpoint is not a Wav2Vec2 transfer-learning checkpoint.")
+        saved_head = checkpoint.get("model_state_dict", {}).get("ctc_head.weight")
+        if saved_head is not None and saved_head.shape[0] != tokenizer.vocab_size:
+            raise RuntimeError(
+                "The saved transfer checkpoint uses a different CTC vocabulary "
+                f"({saved_head.shape[0]} classes) than the current vocabulary "
+                f"({tokenizer.vocab_size}). Start a fresh run with a new output "
+                "directory or move the old artifacts/asr-transfer folder aside."
+            )
         model.load_state_dict(checkpoint["model_state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         scaler.load_state_dict(checkpoint.get("scaler_state_dict", {}))
@@ -309,6 +317,8 @@ def main():
         common = {
             "model_type": "wav2vec2_ctc",
             "pretrained_bundle": "WAV2VEC2_BASE",
+            "vocab_size": tokenizer.vocab_size,
+            "tokenizer_labels": list(tokenizer.labels),
             "epoch": epoch,
             "global_step": global_step,
             "model_state_dict": model.state_dict(),
