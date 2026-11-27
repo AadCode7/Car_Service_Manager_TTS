@@ -227,3 +227,60 @@ Research references:
 - Zipformer paper: https://proceedings.iclr.cc/paper_files/paper/2024/hash/c1bb0e3b062f0a443f2cc8a4ec4bb30d-Abstract-Conference.html
 - NVIDIA NeMo ASR model architecture guide: https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/asr/models.html
 - SpeechBrain ASR-from-scratch tutorial: https://speechbrain.readthedocs.io/en/stable/tutorials/tasks/speech-recognition-from-scratch.html
+
+
+## 12. Transfer learning with pretrained Wav2Vec2 (recommended)
+
+The random-initialized Conformer experiment remains available, but it is no longer the recommended starting point. For transfer learning, use the dedicated Wav2Vec2 pipeline:
+
+    !python -m training.asr.train_transfer
+
+This uses torchaudio's `WAV2VEC2_BASE` checkpoint. It is a 12-layer, 768-dimensional Wav2Vec 2.0 encoder pretrained on 960 hours of **unlabelled** LibriSpeech audio. It has no pretrained ASR output head. The project adds a new 29-symbol character CTC head and learns the transcript mapping from the project's manifests. This avoids copying an incompatible 500-piece SentencePiece head or reusing a supervised LibriSpeech decoder.
+
+The training schedule is staged:
+1. Epoch 1 trains only the new CTC head while the pretrained encoder is frozen.
+2. Later epochs fine-tune the Transformer encoder at a low learning rate (default 1e-5).
+3. The new CTC head uses a higher learning rate (default 3e-4).
+4. The convolutional feature extractor remains frozen by default.
+5. CTC-impossible examples are counted and excluded from the loss instead of silently being converted to zero by `zero_infinity=True`.
+
+The default output directory is `artifacts/asr-transfer`. It is deliberately separate from `artifacts/asr`, so the new run cannot overwrite the existing Conformer checkpoints.
+
+### Runtime requirements
+
+Use a CUDA-enabled PyTorch and the matching torchaudio version. Kaggle images commonly include both; check before installing anything:
+
+    import torch, torchaudio
+    print("PyTorch:", torch.__version__)
+    print("TorchAudio:", torchaudio.__version__)
+    print("CUDA:", torch.cuda.is_available())
+
+If importing torchaudio fails, install the torchaudio build matching the already-installed PyTorch build from https://pytorch.org/get-started/locally/. Do not blindly upgrade PyTorch in a working Kaggle notebook. The first run downloads the pretrained Wav2Vec2 weights (approximately 360 MB) from the official PyTorch model host.
+
+### Recommended first run
+
+First run a small pipeline test to check that the manifest, audio paths, torchaudio model and CTC alignment all work:
+
+    !python -m training.asr.train_transfer --epochs 2 --max-train-samples 512 --max-valid-samples 128 --output-dir artifacts/asr-transfer-smoke
+
+If that completes and validation WER is finite, start the full run:
+
+    !python -m training.asr.train_transfer
+
+Resume an interrupted full run with:
+
+    !python -m training.asr.train_transfer --resume
+
+Evaluate the selected transfer checkpoint:
+
+    !python -m training.asr.evaluate_transfer \\
+        --manifest data/manifests/test-clean.jsonl \\
+        --run-dir artifacts/asr-transfer
+
+The regular inference loader and FastAPI server also support the transfer checkpoint. Set `ASR_ARTIFACT_DIR=artifacts/asr-transfer` before starting the server.
+
+### Evaluation caveat
+
+The Wav2Vec2 self-supervised checkpoint was pretrained on unlabelled audio from LibriSpeech's train-clean-100, train-clean-360 and train-other-500. If your custom validation/test splits were carved out of train-clean-100, their waveforms may have been seen during self-supervised pretraining, although their transcripts were not used by this checkpoint. Treat those scores as development results, not as a fully independent benchmark. For a clean generalisation estimate, evaluate on a separate corpus that was not part of LibriSpeech pretraining, then fine-tune on company-approved automotive recordings.
+
+The pretrained encoder is a much stronger acoustic starting point than random initialization, but it does not guarantee a particular WER. The new CTC head still has to learn the transcript mapping, and automotive vocabulary/accent/noise adaptation will require representative labelled in-domain recordings.
