@@ -197,7 +197,12 @@ class Wav2Vec2CTC(nn.Module):
         bundle = torchaudio.pipelines.WAV2VEC2_BASE
         if int(bundle.sample_rate) != SAMPLE_RATE:
             raise RuntimeError(f"Unexpected pretrained sample rate: {bundle.sample_rate}")
-        self.backbone = bundle.get_model() if pretrained else bundle.get_model()
+        if pretrained:
+            self.backbone = bundle.get_model()
+        else:
+            # Recreate the exact torchaudio architecture without downloading
+            # the original weights. Fine-tuned checkpoints contain all weights.
+            self.backbone = torchaudio.models.wav2vec2_model(**bundle._params)
         hidden_size = 768
         self.ctc_head = nn.Linear(hidden_size, int(vocab_size))
         self.blank_id = 0
