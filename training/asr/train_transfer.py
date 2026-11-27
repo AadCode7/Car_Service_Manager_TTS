@@ -161,6 +161,9 @@ def main():
     for epoch in range(start_epoch, epochs + 1):
         model.set_epoch_trainability(epoch, head_warmup_epochs, freeze_frontend)
         model.train()
+        if epoch <= head_warmup_epochs:
+            # Keep encoder dropout disabled while fitting the fresh CTC head.
+            model.backbone.eval()
         batch_sampler.set_epoch(epoch)
         optimizer.zero_grad(set_to_none=True)
         epoch_loss = 0.0
