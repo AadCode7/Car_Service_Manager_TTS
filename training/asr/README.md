@@ -135,9 +135,9 @@ WER and CER are corpus-level edit-distance rates. They may exceed 1.0 when a hyp
 
 ## 7. Generate charts
 
-    !python -m training.asr.plot_metrics --run-dir artifacts/asr
+    !python -m training.asr.plot_metrics --run-dir artifacts/asr-transfer
 
-Charts are saved in artifacts/asr/charts:
+Charts are saved in artifacts/asr-transfer/charts:
 - loss_curves.png
 - error_rates.png
 - learning_rate.png
