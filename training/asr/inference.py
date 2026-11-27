@@ -14,7 +14,6 @@ from scipy.signal import resample_poly
 from .data import waveform_to_log_mel
 from .metrics import greedy_decode
 from .model import ConformerCTC, validate_checkpoint_architecture
-from .wav2vec2_model import Wav2Vec2CTC
 from scipy.signal import resample_poly
 
 
