@@ -116,6 +116,8 @@ Save checkpoints to durable notebook storage or download/copy them before the ru
 
 Do not use test-clean to select hyperparameters or stop training. Use dev-clean for validation and only run test evaluation after choosing the checkpoint.
 
+**Evaluation caveat:** torchaudio's self-supervised `WAV2VEC2_BASE` checkpoint was pretrained on unlabelled audio from LibriSpeech train-clean-100, train-clean-360 and train-other-500. Your custom validation and test splits were carved from train-clean-100, so their waveforms may already have appeared during pretraining even though their transcripts were not used. Treat these scores as development results, not a fully independent benchmark. For an unbiased generalisation estimate, also evaluate on a separate corpus that was not part of LibriSpeech pretraining.
+
     !python -m training.asr.evaluate \
         --manifest data/manifests/test-clean.jsonl \
         --run-dir artifacts/asr-transfer
