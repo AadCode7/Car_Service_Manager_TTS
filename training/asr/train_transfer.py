@@ -40,8 +40,9 @@ def resolve(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=Path("training/asr/config.yaml"))
-    parser.add_argument("--output-dir", type=Path, default=Path("artifacts/asr-transfer"))
+    parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--epochs", type=int, default=None)
+    parser.add_argument("--smoke", action="store_true")
     parser.add_argument("--max-train-samples", type=int, default=None)
     parser.add_argument("--max-valid-samples", type=int, default=None)
     parser.add_argument("--resume", action="store_true")
@@ -50,10 +51,16 @@ def main():
     config = yaml.safe_load(resolve(args.config).read_text(encoding="utf-8"))
     train_cfg = config["training"]
     data_cfg = config["data"]
-    output_dir = resolve(args.output_dir)
-    epochs = int(args.epochs or train_cfg.get("transfer_epochs", 12))
-    max_train = args.max_train_samples or data_cfg.get("max_train_samples")
-    max_valid = args.max_valid_samples or data_cfg.get("max_valid_samples")
+    if args.smoke:
+        output_dir = resolve(args.output_dir or "artifacts/asr-transfer-smoke")
+        epochs = int(args.epochs or 2)
+        max_train = args.max_train_samples or 512
+        max_valid = args.max_valid_samples or 128
+    else:
+        output_dir = resolve(args.output_dir or "artifacts/asr-transfer")
+        epochs = int(args.epochs or train_cfg.get("transfer_epochs", 12))
+        max_train = args.max_train_samples or data_cfg.get("max_train_samples")
+        max_valid = args.max_valid_samples or data_cfg.get("max_valid_samples")
     seed = int(config.get("seed", 42))
     random.seed(seed)
     np.random.seed(seed)
@@ -90,7 +97,7 @@ def main():
         )),
         shuffle=True, seed=seed,
     )
-    workers = int(data_cfg.get("num_workers", 2))
+    workers = 0 if args.smoke else int(data_cfg.get("num_workers", 2))
     train_loader = DataLoader(
         train_set, batch_sampler=batch_sampler, num_workers=workers,
         pin_memory=device.type == "cuda", persistent_workers=workers > 0,
