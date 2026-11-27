@@ -1,6 +1,6 @@
 # English ASR with Wav2Vec 2.0 Transfer Learning
 
-The default training backend now fine-tunes **torchaudio WAV2VEC2_BASE**, a 95M-parameter wav2vec 2.0 encoder pretrained self-supervised on 960 hours of LibriSpeech audio. It replaces the original randomly initialised acoustic encoder. The transfer path uses a compact 29-symbol character vocabulary (blank, word separator, A–Z and apostrophe) and learns a new CTC output head. It does not reuse the old 500-piece SentencePiece tokenizer. Epoch 1 trains only the new CTC head; subsequent epochs fine-tune the upper four Transformer layers while keeping the feature extractor and lower eight layers frozen. Separate learning rates protect the pretrained encoder.
+The default training backend now fine-tunes **torchaudio WAV2VEC2_BASE**, a 95M-parameter wav2vec 2.0 encoder pretrained self-supervised on 960 hours of LibriSpeech audio. It replaces the original randomly initialised acoustic encoder. The transfer path uses a compact 39-symbol character vocabulary (blank, word separator, A–Z, apostrophe and digits 0–9) and learns a new CTC output head. It does not reuse the old 500-piece SentencePiece tokenizer. Epoch 1 trains only the new CTC head; subsequent epochs fine-tune the upper four Transformer layers while keeping the feature extractor and lower eight layers frozen. Separate learning rates protect the pretrained encoder.
 
 The original compact Conformer-CTC implementation remains available as a research baseline when `model.backend` is set to `conformer`. Transfer learning is the default because it gives the acoustic model a useful representation before supervised fine-tuning. The original Conformer implementation remains available as a separate baseline.
 
@@ -77,7 +77,7 @@ The first run downloads the official torchaudio `WAV2VEC2_BASE` checkpoint (appr
     print(torch.__version__, torchaudio.__version__)
     print(torchaudio.pipelines.WAV2VEC2_BASE.sample_rate)
 
-The model expects 16 kHz raw waveforms. The transfer-learning dataset therefore reads audio directly rather than using the old log-Mel frontend. The CTC head is newly initialised for the 29-symbol character vocabulary; the acoustic encoder starts from pretrained weights. The default T4 recipe trains the CTC head alone for the first epoch, then fine-tunes the upper four Transformer layers at 1e-5 while keeping the feature extractor and lower eight layers frozen. The CTC head uses a 3e-4 learning rate. It uses smaller duration-based batches to control attention memory.
+The model expects 16 kHz raw waveforms. The transfer-learning dataset therefore reads audio directly rather than using the old log-Mel frontend. The CTC head is newly initialised for the 39-symbol character vocabulary; the acoustic encoder starts from pretrained weights. The default T4 recipe trains the CTC head alone for the first epoch, then fine-tunes the upper four Transformer layers at 1e-5 while keeping the feature extractor and lower eight layers frozen. The CTC head uses a 3e-4 learning rate. It uses smaller duration-based batches to control attention memory.
 
 The original Conformer backend remains in the repository. To select it, change `model.backend` to `conformer`; its checkpoints are not compatible with wav2vec2 checkpoints.
 
