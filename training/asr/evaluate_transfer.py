@@ -43,7 +43,7 @@ def main():
     if checkpoint.get("model_type") != "wav2vec2_ctc":
         raise RuntimeError("The selected checkpoint is not a Wav2Vec2 CTC checkpoint.")
     tokenizer = CharacterCTCTokenizer.load(run_dir / "tokenizer.json")
-    model = Wav2Vec2CTC(tokenizer.vocab_size, pretrained=True).to(device)
+    model = Wav2Vec2CTC(tokenizer.vocab_size, pretrained=False).to(device)
     model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()
 
