@@ -37,7 +37,7 @@ def resolve_path(value: str | Path) -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, default=Path("data/manifests/test-clean.jsonl"))
-    parser.add_argument("--run-dir", type=Path, default=Path("artifacts/asr"))
+    parser.add_argument("--run-dir", type=Path, default=Path("artifacts/asr-transfer"))
     parser.add_argument("--batch-size", type=int, default=2)
     parser.add_argument("--max-samples", type=int, default=None)
     parser.add_argument("--beam-width", type=int, default=0)
