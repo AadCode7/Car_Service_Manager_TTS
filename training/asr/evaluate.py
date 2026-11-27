@@ -16,8 +16,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from .data import ASRDataset, collate_asr
-from .train_wav2vec2 import WaveformDataset, collate_waveforms
-from .wav2vec2_model import Wav2Vec2CTC
+from .transfer import CharacterCTCTokenizer, TransferASRDataset, Wav2Vec2CTC, collate_transfer
 from .metrics import (
     corpus_error_rates,
     ctc_prefix_beam_search,
@@ -39,7 +38,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, default=Path("data/manifests/test-clean.jsonl"))
     parser.add_argument("--run-dir", type=Path, default=Path("artifacts/asr"))
-    parser.add_argument("--batch-size", type=int, default=8)
+    parser.add_argument("--batch-size", type=int, default=2)
     parser.add_argument("--max-samples", type=int, default=None)
     parser.add_argument("--beam-width", type=int, default=0)
     args = parser.parse_args()
@@ -54,34 +53,41 @@ def main() -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
-    validate_checkpoint_architecture(checkpoint)
-    model_config = checkpoint["model_config"]
-    audio_config = checkpoint["audio_config"]
-    tokenizer = ASRTokenizer(tokenizer_path)
-    if model_config.get("backend") == "wav2vec2":
-        model = Wav2Vec2CTC(
-            vocab_size=model_config["vocab_size"],
-            pretrained=False,
-            freeze_encoder_layers=model_config.get("freeze_encoder_layers", 8),
-            dropout=model_config.get("dropout", 0.1),
-        ).to(device)
-    else:
-        model = ConformerCTC(**model_config).to(device)
-    model.load_state_dict(checkpoint["model_state_dict"])
-    model.eval()
-    criterion = nn.CTCLoss(blank=tokenizer.blank_id, zero_infinity=True)
+    is_transfer = checkpoint.get("model_type") == "wav2vec2_ctc"
 
-    if model_config.get("backend") == "wav2vec2":
-        dataset = WaveformDataset(args.manifest, tokenizer, audio_config["sample_rate"], args.max_samples)
-        collate_fn = collate_waveforms
+    if is_transfer:
+        tokenizer_path = run_dir / "tokenizer.json"
+        if not tokenizer_path.is_file():
+            raise FileNotFoundError(f"Transfer tokenizer missing: {tokenizer_path}")
+        tokenizer = CharacterCTCTokenizer.load(tokenizer_path)
+        model = Wav2Vec2CTC(tokenizer.vocab_size, pretrained=False).to(device)
+        model.load_state_dict(checkpoint["model_state_dict"])
+        audio_config = {"sample_rate": 16000}
+        dataset = TransferASRDataset(
+            resolve_path(args.manifest), tokenizer,
+            max_samples=args.max_samples, speed_perturb=False
+        )
+        collate_fn = collate_transfer
+        eval_batch_size = min(args.batch_size, 2)
     else:
+        validate_checkpoint_architecture(checkpoint)
+        model_config = checkpoint["model_config"]
+        audio_config = checkpoint["audio_config"]
+        tokenizer_path = run_dir / "tokenizer.model"
+        tokenizer = ASRTokenizer(tokenizer_path)
+        model = ConformerCTC(**model_config).to(device)
+        model.load_state_dict(checkpoint["model_state_dict"])
         dataset = ASRDataset(
             resolve_path(args.manifest), tokenizer, audio_config,
             max_samples=args.max_samples, speed_perturb=False
         )
         collate_fn = collate_asr
+        eval_batch_size = args.batch_size
+
+    model.eval()
+    criterion = nn.CTCLoss(blank=tokenizer.blank_id, zero_infinity=True)
     loader = DataLoader(
-        dataset, batch_size=args.batch_size, shuffle=False, num_workers=2,
+        dataset, batch_size=eval_batch_size, shuffle=False, num_workers=2,
         pin_memory=device.type == "cuda", collate_fn=collate_fn
     )
 
@@ -93,7 +99,7 @@ def main() -> None:
 
     with torch.inference_mode():
         for batch in tqdm(loader, desc="Testing"):
-            if model_config.get("backend") == "wav2vec2":
+            if is_transfer:
                 features = batch["waveforms"].to(device, non_blocking=True)
                 feature_lengths = batch["waveform_lengths"].to(device, non_blocking=True)
             else:
