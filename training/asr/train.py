@@ -30,7 +30,12 @@ from .data import (
     collate_asr,
 )
 from .metrics import corpus_error_rates, greedy_decode
-from .model import ConformerCTC, model_parameter_count
+from .model import (
+    ConformerCTC,
+    MODEL_ARCHITECTURE_VERSION,
+    model_parameter_count,
+    validate_checkpoint_architecture,
+)
 from .tokenizer import ASRTokenizer
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -225,6 +230,8 @@ def train_one_epoch(
     total_loss = 0.0
     total_examples = 0
     steps_since_update = 0
+    optimizer_updates = 0
+    skipped_optimizer_updates = 0
     global_step = int(initial_global_step)
     accumulation = max(1, int(config.get("grad_accum_steps", 1)))
     max_batches = len(loader)
@@ -281,16 +288,28 @@ def train_one_epoch(
             torch.nn.utils.clip_grad_norm_(
                 model.parameters(), float(config.get("max_grad_norm", 5.0))
             )
+            scale_before = scaler.get_scale()
             scaler.step(optimizer)
             scaler.update()
+            scale_after = scaler.get_scale()
+            # A reduced GradScaler scale indicates that Inf/NaN gradients
+            # caused the optimizer update to be skipped.
+            optimizer_stepped = (
+                not scaler.is_enabled() or scale_after >= scale_before
+            )
             optimizer.zero_grad(set_to_none=True)
-            scheduler.step()
-            if ema is not None:
-                ema.update(model)
             steps_since_update = 0
-            global_step += 1
-            if checkpoint_callback is not None:
-                checkpoint_callback(batch_offset + batch_index, global_step)
+
+            if optimizer_stepped:
+                scheduler.step()
+                if ema is not None:
+                    ema.update(model)
+                optimizer_updates += 1
+                global_step += 1
+                if checkpoint_callback is not None:
+                    checkpoint_callback(batch_offset + batch_index, global_step)
+            else:
+                skipped_optimizer_updates += 1
 
         progress.set_postfix(
             loss=f"{loss.item():.3f}",
@@ -302,6 +321,8 @@ def train_one_epoch(
         "loss": total_loss / max(total_examples, 1),
         "seconds": elapsed,
         "examples": total_examples,
+        "optimizer_updates": optimizer_updates,
+        "skipped_optimizer_updates": skipped_optimizer_updates,
         "learning_rate": float(optimizer.param_groups[0]["lr"]),
         "global_step": global_step,
     }
@@ -474,6 +495,7 @@ def main() -> None:
         if not checkpoint_path.is_file():
             raise FileNotFoundError(f"Cannot resume; checkpoint missing: {checkpoint_path}")
         checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+        validate_checkpoint_architecture(checkpoint)
         model.load_state_dict(checkpoint["model_state_dict"])
         if ema is not None and checkpoint.get("ema_state_dict"):
             ema.model.load_state_dict(checkpoint["ema_state_dict"])
@@ -500,7 +522,11 @@ def main() -> None:
         shutil.copy2(tokenizer_path, destination_tokenizer)
     with (output_dir / "model_config.json").open("w", encoding="utf-8") as output:
         json.dump(
-            {"model": model_config, "audio": config["audio"]},
+            {
+                "model_architecture_version": MODEL_ARCHITECTURE_VERSION,
+                "model": model_config,
+                "audio": config["audio"],
+            },
             output,
             indent=2,
         )
@@ -517,6 +543,7 @@ def main() -> None:
             if interval <= 0 or current_global_step % interval != 0:
                 return
             step_payload = {
+                "model_architecture_version": MODEL_ARCHITECTURE_VERSION,
                 "epoch": epoch,
                 "epoch_complete": False,
                 "batch_in_epoch": completed_batch_index,
@@ -567,6 +594,8 @@ def main() -> None:
             "learning_rate": train_stats["learning_rate"],
             "epoch_seconds": train_stats["seconds"],
             "train_examples": train_stats["examples"],
+            "optimizer_updates": train_stats["optimizer_updates"],
+            "skipped_optimizer_updates": train_stats["skipped_optimizer_updates"],
             "valid_sentences": valid_stats["sentences"],
             "best_wer": best_wer,
         }
@@ -576,6 +605,7 @@ def main() -> None:
             log.write(json.dumps(record) + "\n")
 
         checkpoint_common = {
+            "model_architecture_version": MODEL_ARCHITECTURE_VERSION,
             "epoch": epoch,
             "epoch_complete": True,
             "batch_in_epoch": -1,
@@ -600,6 +630,7 @@ def main() -> None:
                 ema.model.state_dict() if ema is not None else model.state_dict()
             )
             best_checkpoint = {
+                "model_architecture_version": MODEL_ARCHITECTURE_VERSION,
                 "epoch": epoch,
                 "model_state_dict": best_weights,
                 "model_config": model_config,

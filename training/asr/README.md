@@ -75,6 +75,10 @@ The smoke run writes to artifacts/asr-smoke by default, separate from the full m
 
     !python -m training.asr.train
 
+The current model uses padding-aware LayerNorm in its convolutional frontend and Conformer convolution modules. The smoke test also checks that valid-frame logits do not change when an utterance is padded and batched with a longer recording.
+
+**Important when updating from the earlier BatchNorm model:** the model architecture and checkpoint state dictionary have changed. Start a fresh run without `--resume`. Back up the old `artifacts/asr` directory first if you need to preserve its checkpoints and metrics. Old checkpoints are intentionally rejected with an explicit compatibility error; they cannot be loaded into this architecture.
+
 Main settings are in training/asr/config.yaml:
 - model: hidden dimension, attention heads, number of Conformer blocks and convolution kernel
 - data: manifests, tokenizer path and worker count

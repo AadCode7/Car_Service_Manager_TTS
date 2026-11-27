@@ -22,7 +22,7 @@ from .metrics import (
     greedy_decode,
     sentence_error_rates,
 )
-from .model import ConformerCTC
+from .model import ConformerCTC, validate_checkpoint_architecture
 from .tokenizer import ASRTokenizer
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -52,6 +52,7 @@ def main() -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+    validate_checkpoint_architecture(checkpoint)
     model_config = checkpoint["model_config"]
     audio_config = checkpoint["audio_config"]
     tokenizer = ASRTokenizer(tokenizer_path)

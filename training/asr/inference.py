@@ -11,7 +11,7 @@ import torch
 
 from .data import waveform_to_log_mel
 from .metrics import greedy_decode
-from .model import ConformerCTC
+from .model import ConformerCTC, validate_checkpoint_architecture
 from .tokenizer import ASRTokenizer
 
 
@@ -33,6 +33,7 @@ def load_asr_model(
     checkpoint = torch.load(
         checkpoint_path, map_location=selected_device, weights_only=False
     )
+    validate_checkpoint_architecture(checkpoint)
     model = ConformerCTC(**checkpoint["model_config"]).to(selected_device)
     model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()

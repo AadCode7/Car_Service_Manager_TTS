@@ -92,6 +92,33 @@ def main() -> None:
     if not any(parameter.grad is not None for parameter in model.parameters()):
         raise AssertionError("No gradients were produced.")
 
+    # The same utterance must produce identical valid-frame logits whether it
+    # is evaluated alone or padded and batched with a longer recording.
+    model.eval()
+    short = features[2:3, :77].clone()
+    long = features[0:1, :120].clone()
+    padded_batch = torch.zeros(2, 120, 80)
+    padded_batch[0, :77] = short[0]
+    padded_batch[1] = long[0]
+    with torch.inference_mode():
+        single_logits, single_lengths = model(
+            short, torch.tensor([77], dtype=torch.long)
+        )
+        batch_logits, batch_lengths = model(
+            padded_batch, torch.tensor([77, 120], dtype=torch.long)
+        )
+    valid_output_length = int(single_lengths[0].item())
+    if int(batch_lengths[0].item()) != valid_output_length:
+        raise AssertionError("Subsampled length changed with batch padding.")
+    if not torch.allclose(
+        single_logits[0, :valid_output_length],
+        batch_logits[0, :valid_output_length],
+        atol=1e-5,
+        rtol=1e-5,
+    ):
+        raise AssertionError("Valid-frame logits depend on batch padding.")
+    model.train()
+
     print(
         "Smoke test passed:",
         f"log_mel={log_mel.shape}",

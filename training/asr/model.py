@@ -22,6 +22,20 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+MODEL_ARCHITECTURE_VERSION = 2
+
+
+def validate_checkpoint_architecture(checkpoint: dict) -> None:
+    version = int(checkpoint.get("model_architecture_version", 1))
+    if version != MODEL_ARCHITECTURE_VERSION:
+        raise RuntimeError(
+            f"Checkpoint architecture version {version} is incompatible with "
+            f"current model version {MODEL_ARCHITECTURE_VERSION}. This model "
+            "uses padding-aware LayerNorm and requires training from scratch. "
+            "Do not resume an older BatchNorm checkpoint."
+        )
+
+
 def subsample_lengths(lengths: torch.Tensor) -> torch.Tensor:
     """Output lengths after three stride-2, kernel-3, padding-1 stages (8x)."""
     for _ in range(3):
@@ -30,7 +44,7 @@ def subsample_lengths(lengths: torch.Tensor) -> torch.Tensor:
 
 
 class DepthwiseSeparableSubsamplingBlock(nn.Module):
-    """Stride-2 depthwise convolution followed by pointwise channel mixing."""
+    """Stride-2 depthwise convolution with per-position channel normalization."""
 
     def __init__(self, in_channels: int, out_channels: int):
         super().__init__()
@@ -46,22 +60,33 @@ class DepthwiseSeparableSubsamplingBlock(nn.Module):
         self.pointwise = nn.Conv2d(
             in_channels, out_channels, kernel_size=1, bias=False
         )
-        self.norm = nn.BatchNorm2d(out_channels)
+        # Normalize channels independently at each time/frequency position.
+        self.norm = nn.LayerNorm(out_channels)
         self.activation = nn.GELU()
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.activation(self.norm(self.pointwise(self.depthwise(x))))
+    def forward(
+        self, x: torch.Tensor, lengths: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        x = self.pointwise(self.depthwise(x))
+        lengths = subsample_lengths(lengths)
+        valid = torch.arange(x.shape[2], device=x.device).unsqueeze(0) < lengths.unsqueeze(1)
+        x = self.norm(x.permute(0, 2, 3, 1))
+        x = self.activation(x)
+        x = x.masked_fill(~valid[:, :, None, None], 0.0)
+        return x.permute(0, 3, 1, 2).contiguous(), lengths
 
 
 class ConvSubsampling(nn.Module):
-    """FastConformer-inspired 8x depthwise-separable convolutional frontend."""
+    """Padding-aware 8x depthwise-separable convolutional frontend."""
 
     def __init__(self, input_dim: int, channels: int, d_model: int):
         super().__init__()
-        self.conv = nn.Sequential(
-            DepthwiseSeparableSubsamplingBlock(1, channels),
-            DepthwiseSeparableSubsamplingBlock(channels, channels),
-            DepthwiseSeparableSubsamplingBlock(channels, channels),
+        self.conv = nn.ModuleList(
+            [
+                DepthwiseSeparableSubsamplingBlock(1, channels),
+                DepthwiseSeparableSubsamplingBlock(channels, channels),
+                DepthwiseSeparableSubsamplingBlock(channels, channels),
+            ]
         )
         frequency_after_subsampling = input_dim
         for _ in range(3):
@@ -70,13 +95,22 @@ class ConvSubsampling(nn.Module):
             channels * frequency_after_subsampling, d_model
         )
 
-    def forward(self, features: torch.Tensor) -> torch.Tensor:
-        hidden = self.conv(features.unsqueeze(1))
+    def forward(
+        self, features: torch.Tensor, feature_lengths: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        hidden = features.unsqueeze(1)
+        output_lengths = feature_lengths
+        for block in self.conv:
+            hidden, output_lengths = block(hidden, output_lengths)
+
         batch, channels, time, frequency = hidden.shape
         hidden = hidden.transpose(1, 2).contiguous().view(
             batch, time, channels * frequency
         )
-        return self.projection(hidden)
+        hidden = self.projection(hidden)
+        valid = torch.arange(time, device=hidden.device).unsqueeze(0) < output_lengths.unsqueeze(1)
+        hidden = hidden.masked_fill(~valid.unsqueeze(-1), 0.0)
+        return hidden, output_lengths
 
 
 class FeedForwardModule(nn.Module):
@@ -164,17 +198,18 @@ class ConvolutionModule(nn.Module):
             d_model, d_model, kernel_size=kernel_size,
             padding=kernel_size // 2, groups=d_model
         )
-        self.batch_norm = nn.BatchNorm1d(d_model)
+        # Per-time-step LayerNorm avoids statistics over padded frames.
+        self.channel_norm = nn.LayerNorm(d_model)
         self.pointwise_out = nn.Conv1d(d_model, d_model, kernel_size=1)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.norm(x).transpose(1, 2)
         x = F.glu(self.pointwise_in(x), dim=1)
-        x = self.depthwise(x)
-        x = self.batch_norm(x)
+        x = self.depthwise(x).transpose(1, 2)
+        x = self.channel_norm(x)
         x = F.silu(x)
-        x = self.pointwise_out(x)
+        x = self.pointwise_out(x.transpose(1, 2))
         return self.dropout(x.transpose(1, 2))
 
 
@@ -234,8 +269,8 @@ class ConformerCTC(nn.Module):
     def forward(
         self, features: torch.Tensor, feature_lengths: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        hidden = self.subsampling(features)
-        output_lengths = subsample_lengths(feature_lengths).clamp(max=hidden.shape[1])
+        hidden, output_lengths = self.subsampling(features, feature_lengths)
+        output_lengths = output_lengths.clamp(max=hidden.shape[1])
         positions = torch.arange(hidden.shape[1], device=hidden.device)
         valid_mask = positions.unsqueeze(0) < output_lengths.unsqueeze(1)
         hidden = self.input_dropout(hidden).masked_fill(
