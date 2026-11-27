@@ -82,8 +82,12 @@ def main():
     )
     batch_sampler = DurationBucketBatchSampler(
         train_set.durations,
-        max_batch_seconds=float(train_cfg.get("transfer_max_batch_seconds", 24.0)),
-        max_batch_size=int(train_cfg.get("transfer_max_batch_size", 4)),
+        max_batch_seconds=float(train_cfg.get(
+            "transfer_max_batch_seconds", train_cfg.get("max_batch_seconds", 16.0)
+        )),
+        max_batch_size=int(train_cfg.get(
+            "transfer_max_batch_size", train_cfg.get("max_batch_size", 4)
+        )),
         shuffle=True, seed=seed,
     )
     workers = int(data_cfg.get("num_workers", 2))
@@ -159,7 +163,12 @@ def main():
     )
 
     for epoch in range(start_epoch, epochs + 1):
-        model.set_epoch_trainability(epoch, head_warmup_epochs, freeze_frontend)
+        model.set_epoch_trainability(
+            epoch,
+            head_warmup_epochs,
+            freeze_frontend,
+            freeze_encoder_layers=int(config.get("model", {}).get("freeze_encoder_layers", 0)),
+        )
         model.train()
         if epoch <= head_warmup_epochs:
             # Keep encoder dropout disabled while fitting the fresh CTC head.
