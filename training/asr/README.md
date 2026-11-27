@@ -124,7 +124,7 @@ Greedy decoding is the default. To compare a small CTC prefix beam decoder (with
 
     !python -m training.asr.evaluate \
         --manifest data/manifests/test-clean.jsonl \
-        --run-dir artifacts/asr \
+        --run-dir artifacts/asr-transfer \
         --beam-width 8
 
 Outputs:
