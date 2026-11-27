@@ -77,7 +77,7 @@ The first run downloads the official torchaudio `WAV2VEC2_BASE` checkpoint (appr
     print(torch.__version__, torchaudio.__version__)
     print(torchaudio.pipelines.WAV2VEC2_BASE.sample_rate)
 
-The model expects 16 kHz raw waveforms. The transfer-learning dataset therefore reads audio directly rather than using the old log-Mel frontend. The CTC head is newly initialised for the 39-symbol character vocabulary; the acoustic encoder starts from pretrained weights. The default T4 recipe trains the CTC head alone for the first epoch, then fine-tunes the upper four Transformer layers at 1e-5 while keeping the feature extractor and lower eight layers frozen. The CTC head uses a 3e-4 learning rate. It uses smaller duration-based batches to control attention memory.
+The model expects 16 kHz raw waveforms. The transfer-learning dataset therefore reads audio directly rather than using the old log-Mel frontend. The CTC head is newly initialised for the 39-symbol character vocabulary; the acoustic encoder starts from pretrained weights. The default T4 recipe trains the CTC head alone for the first epoch, then fine-tunes the upper four Transformer layers at 1e-5 while keeping the feature extractor and lower eight layers frozen. The CTC head uses a 3e-4 learning rate. It uses smaller duration-based batches to control attention memory. Digits 0–9 are included in the output vocabulary for later vehicle-registration and numeric domain adaptation, but LibriSpeech rarely supplies digit characters in its transcripts. Those outputs will need labelled car-service audio to become reliable.
 
 The original Conformer backend remains in the repository. To select it, change `model.backend` to `conformer`; its checkpoints are not compatible with wav2vec2 checkpoints.
 
