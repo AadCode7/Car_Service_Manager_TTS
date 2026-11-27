@@ -23,6 +23,8 @@ tokenizer:
   model_type: unigram
 
 model:
+  backend: wav2vec2
+  freeze_encoder_layers: 8
   d_model: 192
   n_heads: 6
   n_layers: 10
@@ -32,25 +34,28 @@ model:
   dropout: 0.10
 
 training:
-  epochs: 40
-  max_batch_seconds: 48.0
-  max_batch_size: 16
-  grad_accum_steps: 2
-  learning_rate: 0.0003
-  min_learning_rate: 0.00002
+  epochs: 25
+  max_batch_seconds: 16.0
+  max_batch_size: 4
+  valid_batch_size: 2
+  grad_accum_steps: 4
+  encoder_learning_rate: 0.00001
+  head_learning_rate: 0.0005
+  learning_rate: 0.0005
+  min_learning_rate: 0.00001
   weight_decay: 0.01
-  warmup_steps: 1000
-  max_grad_norm: 5.0
+  warmup_steps: 300
+  max_grad_norm: 1.0
   amp: true
   amp_dtype: float16
-  spec_augment: true
+  spec_augment: false
   freq_masks: 2
   freq_mask_width: 15
   time_masks: 2
   time_mask_width: 30
-  speed_perturb: true
+  speed_perturb: false
   speed_perturb_rates: [0.9, 1.0, 1.1]
-  use_ema: true
+  use_ema: false
   ema_decay: 0.999
   early_stopping_patience: 8
   log_every_steps: 50
