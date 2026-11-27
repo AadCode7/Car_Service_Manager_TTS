@@ -170,8 +170,27 @@ def main():
         epoch_examples = 0
         skipped_impossible = 0
         updates = 0
+        pending_micro_batches = 0
         started = time.perf_counter()
         progress = tqdm(train_loader, desc=f"Transfer epoch {epoch}")
+
+        def apply_optimizer_update(micro_batches: int) -> None:
+            nonlocal updates, global_step
+            scaler.unscale_(optimizer)
+            if micro_batches < accumulation:
+                correction = accumulation / max(micro_batches, 1)
+                for parameter in model.parameters():
+                    if parameter.grad is not None:
+                        parameter.grad.mul_(correction)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+            scale_before = scaler.get_scale()
+            scaler.step(optimizer)
+            scaler.update()
+            scale_after = scaler.get_scale()
+            optimizer.zero_grad(set_to_none=True)
+            if not scaler.is_enabled() or scale_after >= scale_before:
+                updates += 1
+                global_step += 1
 
         for batch_index, batch in enumerate(progress):
             waveforms = batch["waveforms"].to(device, non_blocking=True)
@@ -199,21 +218,10 @@ def main():
                 continue
 
             scaler.scale(loss / accumulation).backward()
-            should_update = (
-                (batch_index + 1) % accumulation == 0
-                or batch_index + 1 == len(train_loader)
-            )
-            if should_update:
-                scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
-                scale_before = scaler.get_scale()
-                scaler.step(optimizer)
-                scaler.update()
-                scale_after = scaler.get_scale()
-                optimizer.zero_grad(set_to_none=True)
-                if not scaler.is_enabled() or scale_after >= scale_before:
-                    updates += 1
-                    global_step += 1
+            pending_micro_batches += 1
+            if pending_micro_batches >= accumulation:
+                apply_optimizer_update(pending_micro_batches)
+                pending_micro_batches = 0
 
             batch_size = int(finite.sum().item())
             epoch_loss += float(loss.detach().item()) * batch_size
@@ -224,6 +232,11 @@ def main():
                 encoder_lr=f"{optimizer.param_groups[0]['lr']:.1e}",
             )
 
+        # Flush a final partial accumulation window, including when trailing
+        # batches contained no valid CTC alignments.
+        if pending_micro_batches:
+            apply_optimizer_update(pending_micro_batches)
+
         # Greedy validation on the held-out validation manifest.
         model.eval()
         refs, hyps = [], []
@@ -233,7 +246,10 @@ def main():
             for batch in tqdm(valid_loader, desc="Validation", leave=False):
                 waveforms = batch["waveforms"].to(device, non_blocking=True)
                 waveform_lengths = batch["waveform_lengths"].to(device, non_blocking=True)
-                logits, output_lengths = model(waveforms, waveform_lengths)
+                with torch.autocast(
+                    device_type="cuda", dtype=torch.float16, enabled=amp_enabled
+                ):
+                    logits, output_lengths = model(waveforms, waveform_lengths)
                 log_probs = F.log_softmax(logits.float(), dim=-1)
                 per_loss = criterion(
                     log_probs.transpose(0, 1), batch["targets"],
