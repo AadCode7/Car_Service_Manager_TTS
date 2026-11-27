@@ -1,8 +1,8 @@
 # English ASR with Wav2Vec 2.0 Transfer Learning
 
-The default training backend now fine-tunes **torchaudio WAV2VEC2_BASE**, a 95M-parameter wav2vec 2.0 encoder pretrained self-supervised on 960 hours of LibriSpeech audio. It replaces the original randomly initialised acoustic encoder. The transfer path uses a compact 39-symbol character vocabulary (blank, word separator, A–Z, apostrophe and digits 0–9) and learns a new CTC output head. It does not reuse the old 500-piece SentencePiece tokenizer. Epoch 1 trains only the new CTC head; subsequent epochs fine-tune the upper four Transformer layers while keeping the feature extractor and lower eight layers frozen. Separate learning rates protect the pretrained encoder.
+The default training backend fine-tunes **torchaudio WAV2VEC2_BASE**, a 95M-parameter wav2vec 2.0 encoder pretrained self-supervised on 960 hours of LibriSpeech audio. It replaces the original randomly initialised Conformer encoder. The transfer path uses a 39-symbol character vocabulary (blank, word separator, A–Z, apostrophe and digits 0–9) and a newly trained CTC head. It is separate from the original 500-piece SentencePiece Conformer baseline. Epoch 1 trains only the new CTC head; later epochs fine-tune the upper four Transformer layers while keeping the feature extractor and lower eight layers frozen. Separate learning rates protect the pretrained representation.
 
-The original compact Conformer-CTC implementation remains available as a research baseline when `model.backend` is set to `conformer`. Transfer learning is the default because it gives the acoustic model a useful representation before supervised fine-tuning. The original Conformer implementation remains available as a separate baseline.
+Transfer learning is selected by `model.backend: wav2vec2` in the config. Set it to `conformer` to run the original compact Conformer-CTC baseline.
 
 It is research-informed and deliberately small enough to experiment with in Kaggle or Colab. It is **not a claim of matching large pretrained foundation ASR models or absolute state of the art**. Training from random initialisation needs much more labelled audio and compute than using a pretrained checkpoint.
 
@@ -49,7 +49,7 @@ Dataset reference and licence: https://openslr.org/12/ . Check attribution and l
 
 ## 3. Train the tokenizer
 
-SentencePiece is trained only on the training transcripts. It uses a 500-piece unigram vocabulary by default. Token ID 0 is reserved for the CTC blank.
+SentencePiece is used by the original Conformer baseline only. It is trained only on training transcripts and uses a 500-piece unigram vocabulary by default. The Wav2Vec2 transfer path creates its own 39-symbol character vocabulary and does not require this step. Token ID 0 is reserved for the CTC blank in both paths.
 
     !python -m training.asr.train_tokenizer \
         --manifest data/manifests/train-clean-100.jsonl \
@@ -135,7 +135,7 @@ WER and CER are corpus-level edit-distance rates. They may exceed 1.0 when a hyp
 
 ## 7. Generate charts
 
-    !python -m training.asr.plot_metrics --run-dir artifacts/asr-transfer
+    !python -m training.asr.plot_metrics --run-dir artifacts/asr-transfer-transfer
 
 Charts are saved in artifacts/asr-transfer/charts:
 - loss_curves.png
@@ -217,12 +217,12 @@ Keep the endpoint URL and key in the local backend environment, never in React/b
 
 ## 11. Research roadmap
 
-This baseline is intentionally built to make later experiments measurable. Candidate upgrades, in order:
+The transfer-learning baseline is intended to make later experiments measurable. Candidate upgrades, in order:
 
 1. Compare character/BPE vocabularies, data augmentation and feature normalisation.
 2. Train with additional clean and more varied English corpora, keeping speaker-disjoint evaluation.
 3. Add a carefully evaluated external n-gram language model trained from text, not a pretrained ASR checkpoint.
-4. Implement a Zipformer-style multi-resolution encoder or reproduce the published Zipformer recipe with its training toolkit, still initialising all weights randomly.
+4. Compare the pretrained Wav2Vec2 encoder with a Zipformer-style multi-resolution encoder using the same data splits and decoding setup.
 5. Add an RNN-T objective for streaming/online recognition once the CTC baseline is stable.
 6. Add domain adaptation using company-approved English automotive recordings and human-corrected transcripts.
 7. Profile streaming chunking and latency, and evaluate exact-match accuracy for registration numbers, dates, mileage, amounts and model names.
@@ -233,62 +233,3 @@ Research references:
 - Zipformer paper: https://proceedings.iclr.cc/paper_files/paper/2024/hash/c1bb0e3b062f0a443f2cc8a4ec4bb30d-Abstract-Conference.html
 - NVIDIA NeMo ASR model architecture guide: https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/asr/models.html
 - SpeechBrain ASR-from-scratch tutorial: https://speechbrain.readthedocs.io/en/stable/tutorials/tasks/speech-recognition-from-scratch.html
-
-
-## 12. Transfer learning with pretrained Wav2Vec2 (recommended)
-
-The random-initialized Conformer experiment remains available, but it is no longer the recommended starting point. For transfer learning, use the dedicated Wav2Vec2 pipeline:
-
-    !python -m training.asr.train_transfer
-
-Because `training/asr/config.yaml` selects `model.backend: wav2vec2`, the usual command `!python -m training.asr.train` also dispatches to this transfer-learning trainer. Calling `train_transfer` directly is equivalent.\n\nThis uses torchaudio's `WAV2VEC2_BASE` checkpoint. It is a 12-layer, 768-dimensional Wav2Vec 2.0 encoder pretrained on 960 hours of **unlabelled** LibriSpeech audio. It has no pretrained ASR output head. The project adds a new 29-symbol character CTC head and learns the transcript mapping from the project's manifests. This avoids copying an incompatible 500-piece SentencePiece head or reusing a supervised LibriSpeech decoder.
-
-The training schedule is staged:
-1. Epoch 1 trains only the new CTC head while the pretrained encoder is frozen.
-2. Later epochs fine-tune the Transformer encoder at a low learning rate (default 1e-5).
-3. The new CTC head uses a higher learning rate (default 3e-4).
-4. The convolutional feature extractor remains frozen by default.
-5. CTC-impossible examples are counted and excluded from the loss instead of silently being converted to zero by `zero_infinity=True`.
-
-The default output directory is `artifacts/asr-transfer`. It is deliberately separate from `artifacts/asr`, so the new run cannot overwrite the existing Conformer checkpoints.
-
-### Runtime requirements
-
-Use a CUDA-enabled PyTorch and the matching torchaudio version. Kaggle images commonly include both; check before installing anything:
-
-    import torch, torchaudio
-    print("PyTorch:", torch.__version__)
-    print("TorchAudio:", torchaudio.__version__)
-    print("CUDA:", torch.cuda.is_available())
-
-If importing torchaudio fails, install the torchaudio build matching the already-installed PyTorch build from https://pytorch.org/get-started/locally/. Do not blindly upgrade PyTorch in a working Kaggle notebook. The first run downloads the pretrained Wav2Vec2 weights (approximately 360 MB) from the official PyTorch model host.
-
-### Recommended first run
-
-First run a small pipeline test to check that the manifest, audio paths, torchaudio model and CTC alignment all work:
-
-    !python -m training.asr.train --smoke
-
-The smoke run uses 512 training and 128 validation examples and writes to `artifacts/asr-transfer-smoke`.
-
-If that completes and validation WER is finite, start the full run:
-
-    !python -m training.asr.train_transfer
-
-Resume an interrupted full run with:
-
-    !python -m training.asr.train_transfer --resume
-
-Evaluate the selected transfer checkpoint:
-
-    !python -m training.asr.evaluate_transfer \\
-        --manifest data/manifests/test-clean.jsonl \\
-        --run-dir artifacts/asr-transfer
-
-The regular inference loader and FastAPI server also support the transfer checkpoint. Set `ASR_ARTIFACT_DIR=artifacts/asr-transfer` before starting the server.
-
-### Evaluation caveat
-
-The Wav2Vec2 self-supervised checkpoint was pretrained on unlabelled audio from LibriSpeech's train-clean-100, train-clean-360 and train-other-500. If your custom validation/test splits were carved out of train-clean-100, their waveforms may have been seen during self-supervised pretraining, although their transcripts were not used by this checkpoint. Treat those scores as development results, not as a fully independent benchmark. For a clean generalisation estimate, evaluate on a separate corpus that was not part of LibriSpeech pretraining, then fine-tune on company-approved automotive recordings.
-
-The pretrained encoder is a much stronger acoustic starting point than random initialization, but it does not guarantee a particular WER. The new CTC head still has to learn the transcript mapping, and automotive vocabulary/accent/noise adaptation will require representative labelled in-domain recordings.
