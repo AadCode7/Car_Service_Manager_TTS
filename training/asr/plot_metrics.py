@@ -50,21 +50,26 @@ def main() -> None:
     figure.savefig(output_dir / "error_rates.png", dpi=160)
     plt.close(figure)
 
-    figure, axis = plt.subplots(figsize=(9, 5))
-    axis.plot(history["epoch"], history["learning_rate"])
-    axis.set(title="Learning-rate schedule", xlabel="Epoch", ylabel="Learning rate")
-    axis.grid(True, alpha=0.25)
-    figure.tight_layout()
-    figure.savefig(output_dir / "learning_rate.png", dpi=160)
-    plt.close(figure)
+    if "learning_rate" in history.columns:
+        figure, axis = plt.subplots(figsize=(9, 5))
+        axis.plot(history["epoch"], history["learning_rate"])
+        axis.set(title="Learning-rate schedule", xlabel="Epoch", ylabel="Learning rate")
+        axis.grid(True, alpha=0.25)
+        figure.tight_layout()
+        figure.savefig(output_dir / "learning_rate.png", dpi=160)
+        plt.close(figure)
 
-    figure, axis = plt.subplots(figsize=(9, 5))
-    axis.plot(history["epoch"], history["epoch_seconds"] / 60.0)
-    axis.set(title="Training time per epoch", xlabel="Epoch", ylabel="Minutes")
-    axis.grid(True, alpha=0.25)
-    figure.tight_layout()
-    figure.savefig(output_dir / "epoch_time.png", dpi=160)
-    plt.close(figure)
+    time_column = "epoch_seconds" if "epoch_seconds" in history.columns else (
+        "seconds" if "seconds" in history.columns else None
+    )
+    if time_column:
+        figure, axis = plt.subplots(figsize=(9, 5))
+        axis.plot(history["epoch"], history[time_column] / 60.0)
+        axis.set(title="Training time per epoch", xlabel="Epoch", ylabel="Minutes")
+        axis.grid(True, alpha=0.25)
+        figure.tight_layout()
+        figure.savefig(output_dir / "epoch_time.png", dpi=160)
+        plt.close(figure)
 
     predictions_path = run_dir / "test_predictions.csv"
     if predictions_path.is_file():
