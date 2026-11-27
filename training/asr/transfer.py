@@ -210,6 +210,7 @@ class Wav2Vec2CTC(nn.Module):
     def set_epoch_trainability(
         self, epoch: int, head_warmup_epochs: int = 1,
         freeze_feature_extractor: bool = True,
+        freeze_encoder_layers: int = 0,
     ) -> None:
         # First train only the new CTC head. Then fine-tune the pretrained
         # Transformer while keeping the low-level convolutional frontend fixed.
@@ -221,6 +222,18 @@ class Wav2Vec2CTC(nn.Module):
         if freeze_feature_extractor:
             for parameter in self.backbone.feature_extractor.parameters():
                 parameter.requires_grad_(False)
+
+        if backbone_trainable and int(freeze_encoder_layers) > 0:
+            transformer = getattr(self.backbone.encoder, "transformer", None)
+            layers = getattr(transformer, "layers", None)
+            if layers is None:
+                raise RuntimeError(
+                    "This torchaudio version does not expose the expected "
+                    "Wav2Vec2 transformer layer list."
+                )
+            for layer in list(layers)[: int(freeze_encoder_layers)]:
+                for parameter in layer.parameters():
+                    parameter.requires_grad_(False)
 
     def forward(
         self, waveforms: torch.Tensor, waveform_lengths: torch.Tensor
