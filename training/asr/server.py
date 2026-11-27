@@ -18,7 +18,7 @@ from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 
 from .inference import load_asr_model, transcribe_audio_array
 
-ARTIFACT_DIR = Path(os.getenv("ASR_ARTIFACT_DIR", "artifacts/asr"))
+ARTIFACT_DIR = Path(os.getenv("ASR_ARTIFACT_DIR", "artifacts/asr-transfer"))
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 MAX_AUDIO_SECONDS = 180
 MODEL_BUNDLE = None
