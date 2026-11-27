@@ -203,11 +203,15 @@ class ConvolutionModule(nn.Module):
         self.pointwise_out = nn.Conv1d(d_model, d_model, kernel_size=1)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.norm(x).transpose(1, 2)
-        x = F.glu(self.pointwise_in(x), dim=1)
+    def forward(
+        self, x: torch.Tensor, valid_mask: torch.Tensor
+    ) -> torch.Tensor:
+        time_mask = valid_mask[:, None, :]
+        feature_mask = valid_mask.unsqueeze(-1)
+        x = self.norm(x).masked_fill(~feature_mask, 0.0).transpose(1, 2)
+        x = F.glu(self.pointwise_in(x), dim=1).masked_fill(~time_mask, 0.0)
         x = self.depthwise(x).transpose(1, 2)
-        x = self.channel_norm(x)
+        x = self.channel_norm(x).masked_fill(~feature_mask, 0.0)
         x = F.silu(x)
         x = self.pointwise_out(x.transpose(1, 2))
         return self.dropout(x.transpose(1, 2))
@@ -233,7 +237,7 @@ class ConformerBlock(nn.Module):
         x = (x + self.dropout(self.attention(self.attn_norm(x), valid_mask))).masked_fill(
             ~query_mask, 0.0
         )
-        x = (x + self.conv(x)).masked_fill(~query_mask, 0.0)
+        x = (x + self.conv(x, valid_mask)).masked_fill(~query_mask, 0.0)
         x = x + 0.5 * self.ffn2(x)
         return self.final_norm(x).masked_fill(~query_mask, 0.0)
 
