@@ -45,10 +45,9 @@ def main() -> None:
 
     run_dir = resolve_path(args.run_dir)
     checkpoint_path = run_dir / "best.pt"
-    tokenizer_path = run_dir / "tokenizer.model"
-    if not checkpoint_path.is_file() or not tokenizer_path.is_file():
+    if not checkpoint_path.is_file():
         raise FileNotFoundError(
-            f"Need both {checkpoint_path} and {tokenizer_path}. Train the model first."
+            f"Model checkpoint missing: {checkpoint_path}. Train the model first."
         )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -74,6 +73,8 @@ def main() -> None:
         model_config = checkpoint["model_config"]
         audio_config = checkpoint["audio_config"]
         tokenizer_path = run_dir / "tokenizer.model"
+        if not tokenizer_path.is_file():
+            raise FileNotFoundError(f"Conformer tokenizer missing: {tokenizer_path}")
         tokenizer = ASRTokenizer(tokenizer_path)
         model = ConformerCTC(**model_config).to(device)
         model.load_state_dict(checkpoint["model_state_dict"])
