@@ -1,8 +1,8 @@
-# English ASR From Scratch
+# English ASR with Wav2Vec 2.0 Transfer Learning
 
-This package trains an English automatic speech recognition model with **randomly initialised weights**. It does not download or fine-tune Whisper, wav2vec 2.0, HuBERT, NeMo checkpoints or any other pretrained speech recogniser.
+The default training backend now fine-tunes **torchaudio WAV2VEC2_BASE**, a 95M-parameter wav2vec 2.0 encoder pretrained self-supervised on 960 hours of LibriSpeech audio. It replaces the original randomly initialised acoustic encoder. The project keeps its own 500-piece SentencePiece vocabulary and learns a new CTC output head for that vocabulary. The first eight Transformer layers and convolutional feature extractor are frozen initially; the final four Transformer layers and new CTC head are fine-tuned with separate learning rates.
 
-The current baseline is a compact **FastConformer-inspired Conformer-CTC** model: 8x depthwise-separable convolutional subsampling, 9-frame Conformer convolution kernels, Macaron feed-forward blocks, rotary self-attention, PyTorch scaled-dot-product attention, SpecAugment, speed perturbation, duration-bucketed batches, AdamW, warmup/cosine scheduling, mixed precision, EMA weights and greedy/prefix-beam decoding.
+The original compact Conformer-CTC implementation remains available as a research baseline when `model.backend` is set to `conformer`. Transfer learning is the default because it gives the acoustic model a useful representation before supervised fine-tuning. 8x depthwise-separable convolutional subsampling, 9-frame Conformer convolution kernels, Macaron feed-forward blocks, rotary self-attention, PyTorch scaled-dot-product attention, SpecAugment, speed perturbation, duration-bucketed batches, AdamW, warmup/cosine scheduling, mixed precision, EMA weights and greedy/prefix-beam decoding.
 
 It is research-informed and deliberately small enough to experiment with in Kaggle or Colab. It is **not a claim of matching large pretrained foundation ASR models or absolute state of the art**. Training from random initialisation needs much more labelled audio and compute than using a pretrained checkpoint.
 
@@ -71,20 +71,28 @@ Then run a short real-data experiment. This reads a small subset from the manife
 
 The smoke run writes to artifacts/asr-smoke by default, separate from the full model checkpoint directory. It is only a pipeline test; do not interpret its WER as a meaningful model result.
 
-## 5. Train the full baseline
+## 5. Train with pretrained wav2vec 2.0
 
     !python -m training.asr.train
 
-The current model uses padding-aware LayerNorm in its convolutional frontend and Conformer convolution modules. The smoke test also checks that valid-frame logits do not change when an utterance is padded and batched with a longer recording.
+The first run downloads the official torchaudio `WAV2VEC2_BASE` checkpoint (approximately 360 MB) and caches it in the notebook environment. Kaggle internet access must be enabled. Install a torchaudio build matching the PyTorch version already installed in the Kaggle image; do not blindly upgrade PyTorch or install a mismatched torchaudio wheel. Check compatibility first:
 
-**Important when updating from the earlier BatchNorm model:** the model architecture and checkpoint state dictionary have changed. Start a fresh run without `--resume`. Back up the old `artifacts/asr` directory first if you need to preserve its checkpoints and metrics. Old checkpoints are intentionally rejected with an explicit compatibility error; they cannot be loaded into this architecture.
+    import torch, torchaudio
+    print(torch.__version__, torchaudio.__version__)
+    print(torchaudio.pipelines.WAV2VEC2_BASE.sample_rate)
+
+The model expects 16 kHz raw waveforms. The transfer-learning dataset therefore reads audio directly rather than using the old log-Mel frontend. The CTC head is newly initialised for the project's tokenizer; the acoustic encoder starts from pretrained weights. The default T4 recipe freezes the feature extractor and lower eight Transformer layers, fine-tunes the upper four layers at 1e-5, and trains the new CTC head at 5e-4. It uses smaller duration-based batches to control attention memory.
+
+The original Conformer backend remains in the repository. To select it, change `model.backend` to `conformer`; its checkpoints are not compatible with wav2vec2 checkpoints. The smoke test also checks that valid-frame logits do not change when an utterance is padded and batched with a longer recording.
+
+**Important when updating from the earlier BatchNorm model:** the model architecture and checkpoint state dictionary have changed. Start a fresh run without `--resume`. The wav2vec2 trainer currently writes epoch checkpoints and does not resume optimizer state. Back up the old `artifacts/asr` directory first if you need to preserve its checkpoints and metrics. Old checkpoints are intentionally rejected with an explicit compatibility error; they cannot be loaded into this architecture.
 
 Main settings are in training/asr/config.yaml:
 - model: hidden dimension, attention heads, number of Conformer blocks and convolution kernel
 - data: manifests, tokenizer path and worker count
 - training: duration budget, AMP mode, SpecAugment, speed perturbation, EMA, learning rate and early stopping
 
-The default model has 10 Conformer blocks, 192 hidden dimensions, 6 attention heads, 128 subsampling channels and an 8x temporal frontend. This is a smaller resource-conscious configuration than NVIDIA's documented 256-channel FastConformer recipe. If the notebook runs out of GPU memory, lower max_batch_seconds, max_batch_size or d_model. If training is stable and GPU memory permits, increase the duration budget or model size gradually.
+The default transfer model is wav2vec2-base (12 Transformer layers, 768-dimensional representations). This is a smaller resource-conscious configuration than NVIDIA's documented 256-channel FastConformer recipe. If the notebook runs out of GPU memory, lower max_batch_seconds, max_batch_size or d_model. If training is stable and GPU memory permits, increase the duration budget or model size gradually.
 
 For a quick controlled subset without changing the YAML:
 
