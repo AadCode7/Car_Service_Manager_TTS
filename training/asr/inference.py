@@ -39,7 +39,7 @@ def load_asr_model(
         if not tokenizer_path.is_file():
             raise FileNotFoundError(f"Transfer tokenizer missing: {tokenizer_path}")
         tokenizer = CharacterCTCTokenizer.load(tokenizer_path)
-        model = Wav2Vec2CTC(tokenizer.vocab_size, pretrained=True).to(selected_device)
+        model = Wav2Vec2CTC(tokenizer.vocab_size, pretrained=False).to(selected_device)
         model.load_state_dict(checkpoint["model_state_dict"])
         model.eval()
         return {
