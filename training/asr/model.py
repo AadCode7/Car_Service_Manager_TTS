@@ -22,7 +22,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-MODEL_ARCHITECTURE_VERSION = 3
+MODEL_ARCHITECTURE_VERSION = 2
 
 
 def validate_checkpoint_architecture(checkpoint: dict) -> None:
@@ -31,7 +31,7 @@ def validate_checkpoint_architecture(checkpoint: dict) -> None:
         raise RuntimeError(
             f"Checkpoint architecture version {version} is incompatible with "
             f"current model version {MODEL_ARCHITECTURE_VERSION}. This model "
-            "uses a different acoustic encoder. Start a new run with the configured backend. "
+            "uses padding-aware LayerNorm and requires training from scratch. "
             "Do not resume an older BatchNorm checkpoint."
         )
 
