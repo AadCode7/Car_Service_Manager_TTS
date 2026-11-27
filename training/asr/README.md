@@ -81,7 +81,7 @@ The model expects 16 kHz raw waveforms. The transfer-learning dataset therefore 
 
 The original Conformer backend remains in the repository. To select it, change `model.backend` to `conformer`; its checkpoints are not compatible with wav2vec2 checkpoints.
 
-**Important:** transfer checkpoints use a different model and tokenizer from the previous Conformer run. They are written to `artifacts/asr-transfer`, so the old `artifacts/asr` checkpoints are left untouched. The transfer trainer supports `--resume` from `artifacts/asr-transfer/last.pt`.
+**Important:** transfer checkpoints use a different model and tokenizer from the previous Conformer run. They are written to `artifacts/asr-transfer`, so the old `artifacts/asr` checkpoints are left untouched. The transfer trainer supports `--resume` from `artifacts/asr-transfer/last.pt`. If you ran an earlier transfer experiment before the numeric symbols were added to the vocabulary, move or rename its `artifacts/asr-transfer` directory before starting this version; the trainer checks for a vocabulary-size mismatch when resuming.
 
 Main transfer settings are in training/asr/config.yaml:
 - `model.freeze_encoder_layers`: number of lower Transformer layers to keep frozen after head warm-up
