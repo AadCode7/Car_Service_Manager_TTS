@@ -351,6 +351,23 @@ def main() -> None:
     args = parser.parse_args()
 
     config = load_config(resolve_path(args.config))
+    if config.get("model", {}).get("backend") == "wav2vec2":
+        from .train_wav2vec2 import main as train_wav2vec2_main
+        import sys
+        forwarded = ["--config", str(args.config)]
+        if args.epochs is not None:
+            forwarded += ["--epochs", str(args.epochs)]
+        if args.max_train_samples is not None:
+            forwarded += ["--max-train-samples", str(args.max_train_samples)]
+        if args.max_valid_samples is not None:
+            forwarded += ["--max-valid-samples", str(args.max_valid_samples)]
+        original_argv = sys.argv
+        try:
+            sys.argv = [original_argv[0]] + forwarded
+            train_wav2vec2_main()
+        finally:
+            sys.argv = original_argv
+        return
     if args.output_dir:
         config["output"]["directory"] = str(args.output_dir)
     elif args.smoke:
