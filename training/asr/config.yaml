@@ -68,7 +68,7 @@ training:
   transfer_head_lr: 0.0003
   transfer_head_warmup_epochs: 1
   transfer_freeze_feature_extractor: true
-  transfer_max_batch_seconds: 24.0
+  transfer_max_batch_seconds: 16.0
   transfer_max_batch_size: 4
   transfer_valid_batch_size: 2
   transfer_patience: 4
