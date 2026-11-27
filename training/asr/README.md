@@ -1,8 +1,8 @@
 # English ASR with Wav2Vec 2.0 Transfer Learning
 
-The default training backend now fine-tunes **torchaudio WAV2VEC2_BASE**, a 95M-parameter wav2vec 2.0 encoder pretrained self-supervised on 960 hours of LibriSpeech audio. It replaces the original randomly initialised acoustic encoder. The project keeps its own 500-piece SentencePiece vocabulary and learns a new CTC output head for that vocabulary. The first eight Transformer layers and convolutional feature extractor are frozen initially; the final four Transformer layers and new CTC head are fine-tuned with separate learning rates.
+The default training backend now fine-tunes **torchaudio WAV2VEC2_BASE**, a 95M-parameter wav2vec 2.0 encoder pretrained self-supervised on 960 hours of LibriSpeech audio. It replaces the original randomly initialised acoustic encoder. The transfer path uses a compact 29-symbol character vocabulary (blank, word separator, A–Z and apostrophe) and learns a new CTC output head. It does not reuse the old 500-piece SentencePiece tokenizer. Epoch 1 trains only the new CTC head; subsequent epochs fine-tune the upper four Transformer layers while keeping the feature extractor and lower eight layers frozen. Separate learning rates protect the pretrained encoder.
 
-The original compact Conformer-CTC implementation remains available as a research baseline when `model.backend` is set to `conformer`. Transfer learning is the default because it gives the acoustic model a useful representation before supervised fine-tuning. 8x depthwise-separable convolutional subsampling, 9-frame Conformer convolution kernels, Macaron feed-forward blocks, rotary self-attention, PyTorch scaled-dot-product attention, SpecAugment, speed perturbation, duration-bucketed batches, AdamW, warmup/cosine scheduling, mixed precision, EMA weights and greedy/prefix-beam decoding.
+The original compact Conformer-CTC implementation remains available as a research baseline when `model.backend` is set to `conformer`. Transfer learning is the default because it gives the acoustic model a useful representation before supervised fine-tuning. The original Conformer implementation remains available as a separate baseline.
 
 It is research-informed and deliberately small enough to experiment with in Kaggle or Colab. It is **not a claim of matching large pretrained foundation ASR models or absolute state of the art**. Training from random initialisation needs much more labelled audio and compute than using a pretrained checkpoint.
 
@@ -61,15 +61,11 @@ Do not train the tokenizer on dev/test transcripts. That would leak evaluation t
 
 ## 4. Run a smoke test before a long training job
 
-First verify that the neural network, CTC objective, data pipeline and gradients work:
-
-    !python -m training.asr.smoke_test
-
-Then run a short real-data experiment. This reads a small subset from the manifest and trains a small two-layer model for one epoch:
+Run a short transfer-learning smoke experiment first. It downloads the same pretrained encoder, trains on a small manifest subset and writes to a separate directory:
 
     !python -m training.asr.train --smoke
 
-The smoke run writes to artifacts/asr-smoke by default, separate from the full model checkpoint directory. It is only a pipeline test; do not interpret its WER as a meaningful model result.
+This is a pipeline check, not a meaningful WER benchmark. The older `python -m training.asr.smoke_test` command tests the Conformer baseline, not the transfer-learning backend.
 
 ## 5. Train with pretrained wav2vec 2.0
 
@@ -81,18 +77,20 @@ The first run downloads the official torchaudio `WAV2VEC2_BASE` checkpoint (appr
     print(torch.__version__, torchaudio.__version__)
     print(torchaudio.pipelines.WAV2VEC2_BASE.sample_rate)
 
-The model expects 16 kHz raw waveforms. The transfer-learning dataset therefore reads audio directly rather than using the old log-Mel frontend. The CTC head is newly initialised for the project's tokenizer; the acoustic encoder starts from pretrained weights. The default T4 recipe freezes the feature extractor and lower eight Transformer layers, fine-tunes the upper four layers at 1e-5, and trains the new CTC head at 5e-4. It uses smaller duration-based batches to control attention memory.
+The model expects 16 kHz raw waveforms. The transfer-learning dataset therefore reads audio directly rather than using the old log-Mel frontend. The CTC head is newly initialised for the 29-symbol character vocabulary; the acoustic encoder starts from pretrained weights. The default T4 recipe trains the CTC head alone for the first epoch, then fine-tunes the upper four Transformer layers at 1e-5 while keeping the feature extractor and lower eight layers frozen. The CTC head uses a 3e-4 learning rate. It uses smaller duration-based batches to control attention memory.
 
-The original Conformer backend remains in the repository. To select it, change `model.backend` to `conformer`; its checkpoints are not compatible with wav2vec2 checkpoints. The smoke test also checks that valid-frame logits do not change when an utterance is padded and batched with a longer recording.
+The original Conformer backend remains in the repository. To select it, change `model.backend` to `conformer`; its checkpoints are not compatible with wav2vec2 checkpoints.
 
-**Important when updating from the earlier BatchNorm model:** the model architecture and checkpoint state dictionary have changed. Start a fresh run without `--resume`. The wav2vec2 trainer currently writes epoch checkpoints and does not resume optimizer state. Back up the old `artifacts/asr` directory first if you need to preserve its checkpoints and metrics. Old checkpoints are intentionally rejected with an explicit compatibility error; they cannot be loaded into this architecture.
+**Important:** transfer checkpoints use a different model and tokenizer from the previous Conformer run. They are written to `artifacts/asr-transfer`, so the old `artifacts/asr` checkpoints are left untouched. The transfer trainer supports `--resume` from `artifacts/asr-transfer/last.pt`.
 
-Main settings are in training/asr/config.yaml:
-- model: hidden dimension, attention heads, number of Conformer blocks and convolution kernel
-- data: manifests, tokenizer path and worker count
-- training: duration budget, AMP mode, SpecAugment, speed perturbation, EMA, learning rate and early stopping
+Main transfer settings are in training/asr/config.yaml:
+- `model.freeze_encoder_layers`: number of lower Transformer layers to keep frozen after head warm-up
+- `training.transfer_epochs`: maximum fine-tuning epochs
+- `training.transfer_encoder_lr` and `training.transfer_head_lr`: separate learning rates
+- `training.transfer_max_batch_seconds` and `training.transfer_max_batch_size`: T4 memory controls
+- `training.transfer_patience`: early-stopping patience
 
-The default transfer model is wav2vec2-base (12 Transformer layers, 768-dimensional representations). This is a smaller resource-conscious configuration than NVIDIA's documented 256-channel FastConformer recipe. If the notebook runs out of GPU memory, lower max_batch_seconds, max_batch_size or d_model. If training is stable and GPU memory permits, increase the duration budget or model size gradually.
+The default transfer model is wav2vec2-base (12 Transformer layers, 768-dimensional representations). If the notebook runs out of GPU memory, lower `transfer_max_batch_seconds` or `transfer_max_batch_size`.
 
 For a quick controlled subset without changing the YAML:
 
@@ -101,16 +99,16 @@ For a quick controlled subset without changing the YAML:
         --max-train-samples 2000 \
         --max-valid-samples 300
 
-Resume from artifacts/asr/last.pt:
+Resume from the most recent completed epoch:
 
     !python -m training.asr.train --resume
 
-Checkpoints are written every 300 optimiser updates (configurable) and at epoch boundaries. Resume continues from the next saved batch when a mid-epoch checkpoint exists:
-- artifacts/asr/last.pt: full training state for resume, including mid-epoch batch position
-- artifacts/asr/best.pt: best validation-WER weights for inference/evaluation
-- artifacts/asr/tokenizer.model: exact tokenizer used by the model
-- artifacts/asr/history.csv and metrics.jsonl: training history
-- artifacts/asr/model_config.json: model and audio configuration
+Transfer checkpoints are saved at epoch boundaries:
+- `artifacts/asr-transfer/last.pt`: model, optimizer, scaler and training history for resume
+- `artifacts/asr-transfer/best.pt`: best validation-WER weights
+- `artifacts/asr-transfer/tokenizer.json`: exact character vocabulary
+- `artifacts/asr-transfer/history.csv`: epoch metrics
+- `artifacts/asr-transfer/model_config.json`: model metadata
 
 Save checkpoints to durable notebook storage or download/copy them before the runtime disconnects. Ephemeral notebook files can be lost when a session ends.
 
@@ -120,7 +118,7 @@ Do not use test-clean to select hyperparameters or stop training. Use dev-clean 
 
     !python -m training.asr.evaluate \
         --manifest data/manifests/test-clean.jsonl \
-        --run-dir artifacts/asr
+        --run-dir artifacts/asr-transfer
 
 Greedy decoding is the default. To compare a small CTC prefix beam decoder (without an external language model):
 
@@ -154,7 +152,7 @@ After training, test a local or notebook audio file:
     import soundfile as sf
     from training.asr.inference import load_asr_model, transcribe_audio_array
 
-    bundle = load_asr_model("artifacts/asr")
+    bundle = load_asr_model("artifacts/asr-transfer")
     audio, sample_rate = sf.read("sample.wav", dtype="float32", always_2d=True)
     result = transcribe_audio_array(audio, sample_rate, bundle)
     print(result)
@@ -170,7 +168,7 @@ Create a strong temporary key:
     import os, secrets
     ASR_API_KEY = secrets.token_urlsafe(32)
     os.environ["ASR_API_KEY"] = ASR_API_KEY
-    os.environ["ASR_ARTIFACT_DIR"] = "artifacts/asr"
+    os.environ["ASR_ARTIFACT_DIR"] = "artifacts/asr-transfer"
 
 Start the server in a notebook background process:
 
