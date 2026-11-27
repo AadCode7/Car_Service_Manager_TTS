@@ -31,7 +31,7 @@ def normalize_transfer_text(text: str) -> str:
     # encoder is not tied to a tokenizer; this CTC head uses letters,
     # apostrophe and the word delimiter.
     import re
-    text = re.sub(r"[^A-Z' ]+", " ", text)
+    text = re.sub(r"[^A-Z0-9' ]+", " ", text)
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -45,6 +45,7 @@ class CharacterCTCTokenizer:
             "-", "|", "E", "T", "A", "O", "N", "I", "H", "S",
             "R", "D", "L", "U", "M", "W", "C", "F", "G", "Y",
             "P", "B", "V", "K", "'", "X", "J", "Q", "Z",
+            "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
         ))
         if self.labels[0] != "-":
             raise ValueError("Wav2Vec2 CTC blank must be label '-' at index 0.")
