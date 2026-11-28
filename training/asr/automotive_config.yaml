@@ -1,0 +1,35 @@
+seed: 42
+
+data:
+  train_manifest: data/automotive/manifests/train.jsonl
+  valid_manifest: data/automotive/manifests/valid.jsonl
+  test_manifest: data/automotive/manifests/test.jsonl
+  max_train_samples: null
+  max_valid_samples: null
+  num_workers: 2
+
+model:
+  backend: wav2vec2
+  freeze_encoder_layers: 8
+
+training:
+  # Domain adaptation starts from artifacts/asr-transfer/best.pt.
+  # Keep the pretrained frontend and lower 8 Transformer layers frozen.
+  transfer_epochs: 10
+  transfer_encoder_lr: 0.000002
+  transfer_head_lr: 0.00005
+  transfer_head_warmup_epochs: 0
+  transfer_freeze_feature_extractor: true
+  transfer_max_batch_seconds: 12.0
+  transfer_max_batch_size: 2
+  transfer_valid_batch_size: 2
+  transfer_patience: 4
+  grad_accum_steps: 4
+  max_grad_norm: 1.0
+  weight_decay: 0.01
+  amp: true
+  speed_perturb: true
+  speed_perturb_rates: [0.95, 1.0, 1.05]
+
+output:
+  directory: artifacts/asr-automotive
