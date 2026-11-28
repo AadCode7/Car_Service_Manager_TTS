@@ -1,14 +1,12 @@
 seed: 42
-
 data:
-  train_manifest: data/manifests/train-clean-100.jsonl
-  valid_manifest: data/manifests/dev-clean.jsonl
+  train_manifest: /kaggle/input/datasets/aaditthanekar7/data-clean/manifest/train-clean-100.jsonl
+  valid_manifest: /kaggle/input/datasets/aaditthanekar7/data-clean/manifest/dev-clean.jsonl
   test_manifest: data/manifests/test-clean.jsonl
   tokenizer_model: artifacts/asr/tokenizer.model
   max_train_samples: null
   max_valid_samples: null
   num_workers: 2
-
 audio:
   sample_rate: 16000
   n_fft: 400
@@ -17,11 +15,9 @@ audio:
   n_mels: 80
   f_min: 20.0
   f_max: 7600.0
-
 tokenizer:
   vocab_size: 500
   model_type: unigram
-
 model:
   backend: wav2vec2
   freeze_encoder_layers: 8
@@ -31,18 +27,17 @@ model:
   ff_multiplier: 4
   conv_kernel_size: 9
   subsampling_channels: 128
-  dropout: 0.10
-
+  dropout: 0.1
 training:
   epochs: 25
   max_batch_seconds: 16.0
   max_batch_size: 4
   valid_batch_size: 2
   grad_accum_steps: 4
-  encoder_learning_rate: 0.00001
+  encoder_learning_rate: 1.0e-05
   head_learning_rate: 0.0005
   learning_rate: 0.0005
-  min_learning_rate: 0.00001
+  min_learning_rate: 1.0e-05
   weight_decay: 0.01
   warmup_steps: 300
   max_grad_norm: 1.0
@@ -54,7 +49,10 @@ training:
   time_masks: 2
   time_mask_width: 30
   speed_perturb: false
-  speed_perturb_rates: [0.9, 1.0, 1.1]
+  speed_perturb_rates:
+  - 0.9
+  - 1.0
+  - 1.1
   use_ema: false
   ema_decay: 0.999
   early_stopping_patience: 8
@@ -62,9 +60,8 @@ training:
   save_every_epoch: true
   checkpoint_every_steps: 300
   max_valid_batches: null
-  # Wav2Vec2 transfer-learning recipe (used by train_transfer.py).
   transfer_epochs: 12
-  transfer_encoder_lr: 0.00001
+  transfer_encoder_lr: 1.0e-05
   transfer_head_lr: 0.0003
   transfer_head_warmup_epochs: 1
   transfer_freeze_feature_extractor: true
@@ -72,6 +69,5 @@ training:
   transfer_max_batch_size: 4
   transfer_valid_batch_size: 2
   transfer_patience: 4
-
 output:
   directory: artifacts/asr
