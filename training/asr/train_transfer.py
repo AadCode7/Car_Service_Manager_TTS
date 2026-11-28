@@ -46,7 +46,13 @@ def main():
     parser.add_argument("--max-train-samples", type=int, default=None)
     parser.add_argument("--max-valid-samples", type=int, default=None)
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument(
+        "--init-checkpoint", type=Path, default=None,
+        help="Load model weights from an existing Wav2Vec2 CTC checkpoint, reset optimizer and start a new domain-adaptation run.",
+    )
     args = parser.parse_args()
+    if args.resume and args.init_checkpoint is not None:
+        parser.error("--resume and --init-checkpoint cannot be used together.")
 
     config = yaml.safe_load(resolve(args.config).read_text(encoding="utf-8"))
     train_cfg = config["training"]
@@ -109,8 +115,34 @@ def main():
         persistent_workers=workers > 0, collate_fn=collate_transfer,
     )
 
-    model = Wav2Vec2CTC(tokenizer.vocab_size, pretrained=True).to(device)
-    print("Pretrained encoder: torchaudio WAV2VEC2_BASE (self-supervised)")
+    model = Wav2Vec2CTC(
+        tokenizer.vocab_size, pretrained=(args.init_checkpoint is None)
+    ).to(device)
+    if args.init_checkpoint is not None:
+        init_path = resolve(args.init_checkpoint)
+        if not init_path.is_file():
+            raise FileNotFoundError(f"Initialisation checkpoint not found: {init_path}")
+        initial_checkpoint = torch.load(init_path, map_location=device, weights_only=False)
+        if initial_checkpoint.get("model_type") != "wav2vec2_ctc":
+            raise RuntimeError("Initialisation checkpoint is not a Wav2Vec2 CTC checkpoint.")
+        initial_state = initial_checkpoint.get("model_state_dict")
+        if not isinstance(initial_state, dict):
+            raise RuntimeError("Initialisation checkpoint has no model_state_dict.")
+        saved_head = initial_state.get("ctc_head.weight")
+        if saved_head is None or int(saved_head.shape[0]) != tokenizer.vocab_size:
+            raise RuntimeError(
+                "Initial checkpoint CTC vocabulary does not match the current "
+                f"{tokenizer.vocab_size}-class tokenizer. Do not change the tokenizer "
+                "when adapting this checkpoint."
+            )
+        saved_labels = initial_checkpoint.get("tokenizer_labels")
+        if saved_labels is not None and list(saved_labels) != list(tokenizer.labels):
+            raise RuntimeError("Initial checkpoint tokenizer labels do not match the current tokenizer.")
+        model.load_state_dict(initial_state, strict=True)
+        print(f"Initialised from fine-tuned checkpoint: {init_path}")
+        print("Optimizer and epoch history will start fresh for domain adaptation.")
+    else:
+        print("Pretrained encoder: torchaudio WAV2VEC2_BASE (self-supervised)")
     print("CTC vocabulary:", tokenizer.vocab_size)
     print("Parameters:", f"{sum(p.numel() for p in model.parameters()):,}")
 
